@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DriveGlow Subscription Guide</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #FF6B00;
+            font-size: 32px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        h2 {
+            color: #1a1a1a;
+            font-size: 22px;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #FF6B00;
+        }
+        
+        h3 {
+            color: #333;
+            font-size: 18px;
+            margin-top: 25px;
+            margin-bottom: 15px;
+        }
+        
+        .example-box {
+            background: #fff3e0;
+            border-left: 4px solid #FF6B00;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .example-box h4 {
+            color: #FF6B00;
+            margin-bottom: 10px;
+        }
+        
+        .vehicle-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .badge-active {
+            background: #4caf50;
+            color: white;
+        }
+        
+        .badge-none {
+            background: #e0e0e0;
+            color: #666;
+        }
+        
+        .plan-box {
+            background: linear-gradient(135deg, #FF6B00, #FF8C00);
+            color: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 20px 0;
+        }
+        
+        .plan-box h4 {
+            font-size: 20px;
+            margin-bottom: 15px;
+        }
+        
+        .plan-box ul {
+            list-style: none;
+        }
+        
+        .plan-box li {
+            padding: 5px 0;
+        }
+        
+        .plan-box li::before {
+            content: "✓ ";
+        }
+        
+        .warning-box {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .warning-box::before {
+            content: "⚠️ ";
+        }
+        
+        .step-flow {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+        
+        .step {
+            display: flex;
+            align-items: center;
+            padding: 10px 0;
+        }
+        
+        .step-number {
+            background: #FF6B00;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+        
+        .step-content {
+            flex: 1;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        th {
+            background: #FF6B00;
+            color: white;
+            font-weight: 600;
+        }
+        
+        tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        
+        .comparison-table th:first-child,
+        .comparison-table td:first-child {
+            background: #1a1a1a;
+            color: white;
+        }
+        
+        .faq-item {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        
+        .faq-question {
+            background: #f8f9fa;
+            padding: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        
+        .faq-answer {
+            padding: 15px;
+            border-top: 1px solid #e0e0e0;
+            color: #555;
+        }
+        
+        .summary-box {
+            background: #1a1a1a;
+            color: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 30px 0;
+        }
+        
+        .summary-box h3 {
+            color: #FF6B00;
+            margin-bottom: 20px;
+        }
+        
+        .summary-item {
+            padding: 10px 0;
+            border-bottom: 1px solid #333;
+        }
+        
+        .summary-item:last-child {
+            border-bottom: none;
+        }
+        
+        .emoji {
+            font-size: 1.2em;
+        }
+        
+        .status-table td:nth-child(2) {
+            text-align: center;
+        }
+        
+        .status-yes {
+            color: #4caf50;
+            font-weight: bold;
+        }
+        
+        .status-no {
+            color: #f44336;
+            font-weight: bold;
+        }
+        
+        .highlight {
+            background: #e3f2fd;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            
+            .container {
+                box-shadow: none;
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚗 DriveGlow Subscription Guide</h1>
+        <p class="subtitle">Your Complete Guide to Car Wash Subscriptions | Last Updated: March 2026</p>
+        
+        <!-- PART 1: Example Setup -->
+        <h2>📱 Example: Raj's 3 Vehicles</h2>
+        <p>Let's understand subscriptions with a real example. Raj has 3 cars:</p>
+        
+        <div class="vehicle-card">
+            <div>
+                <strong>Toyota Fortuner</strong> (TN 01 AB 1234)
+            </div>
+            <span class="badge badge-active">🟢 SUBSCRIBED</span>
+        </div>
+        <div class="vehicle-card">
+            <div>
+                <strong>Toyota Innova</strong> (TN 02 CD 4567)
+            </div>
+            <span class="badge badge-none">No Subscription</span>
+        </div>
+        <div class="vehicle-card">
+            <div>
+                <strong>Honda Civic</strong> (TN 03 EF 8901)
+            </div>
+            <span class="badge badge-none">Expired</span>
+        </div>
+        
+        <p style="margin-top: 15px;"><strong>Key Point:</strong> Each vehicle has its own subscription status. Having subscription on one car doesn't affect other cars.</p>
+        
+        <!-- PART 2: Understanding Plans -->
+        <h2>📋 Understanding Subscription Plans</h2>
+        
+        <div class="plan-box">
+            <h4>🌟 Premium Wash Plan</h4>
+            <ul>
+                <li><strong>Duration:</strong> 1 Month (30 days)</li>
+                <li><strong>Max Services:</strong> 4 per month</li>
+                <li><strong>Price:</strong> ₹999/month</li>
+                <li><strong>Included Services:</strong> Exterior Wash, Interior Vacuum, Tire Shine, Dashboard Wipe</li>
+                <li><strong>Daily Limit:</strong> 1 free service per day</li>
+            </ul>
+        </div>
+        
+        <h3>Key Points About Plans:</h3>
+        <ul>
+            <li><strong>Duration</strong> = How long the plan is valid (30, 90, or 365 days)</li>
+            <li><strong>Max Services</strong> = Total services you can use</li>
+            <li><strong>Included Services</strong> = Only these services are FREE</li>
+            <li><strong>Daily Limit</strong> = Only 1 free service per day per vehicle</li>
+        </ul>
+        
+        <!-- PART 3: How to Avail -->
+        <h2>💳 How to Avail Subscription</h2>
+        
+        <div class="step-flow">
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <strong>Go to Subscription Plans Page</strong><br>
+                    <small>Services tab → Subscription Plans</small>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <strong>Browse Available Plans</strong><br>
+                    <small>See price, duration, and included services</small>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <strong>Select Vehicle</strong><br>
+                    <small>Only vehicles WITHOUT active subscription shown</small>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <strong>Choose Payment Method</strong><br>
+                    <small>Pay for one or multiple vehicles</small>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-number">5</div>
+                <div class="step-content">
+                    <strong>Confirmation</strong><br>
+                    <small>Get SUBSCRIBED badge instantly!</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="warning-box">
+            <strong>Important:</strong> You CANNOT buy subscription for a vehicle that already has an ACTIVE subscription. Must wait for expiry or contact admin.
+        </div>
+        
+        <!-- PART 4: How Booking Works -->
+        <h2>📅 How Booking Works</h2>
+        
+        <h3>🔵 Scenario A: Booking Subscription Service (FREE)</h3>
+        <p>Raj wants to wash his Fortuner (Premium Plan) - <strong>FREE</strong></p>
+        
+        <div class="step-flow">
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">Go to <strong>My Bookings</strong> → <strong>My Subscription</strong> tab</div>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">Tap <strong>"CHOOSE SERVICE"</strong> on your plan card</div>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">Select a service from the list</div>
+            </div>
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-content">See <strong>₹0</strong> and <strong>"FREE - From Subscription"</strong></div>
+            </div>
+            <div class="step">
+                <div class="step-number">5</div>
+                <div class="step-content">Tap <strong>"CONFIRM BOOKING"</strong> - No time slot needed!</div>
+            </div>
+        </div>
+        
+        <h3>🟡 Scenario B: Booking Regular Service (PAID)</h3>
+        <p>Raj wants Interior Cleaning - <strong>₹499 (Full Price)</strong></p>
+        
+        <div class="step-flow">
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">Go to <strong>Standard Care</strong> screen</div>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">Tap <strong>"BOOK NOW"</strong> on any service</div>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">Select <strong>any vehicle</strong> from dropdown (Fortuner, Innova, etc.)</div>
+            </div>
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-content">See <strong>full price</strong> - subscription doesn't cover this</div>
+            </div>
+            <div class="step">
+                <div class="step-number">5</div>
+                <div class="step-content">Select <strong>time slot</strong> (9 AM - 7:30 PM)</div>
+            </div>
+            <div class="step">
+                <div class="step-number">6</div>
+                <div class="step-content">Tap <strong>"PAY ₹XXX"</strong></div>
+            </div>
+        </div>
+        
+        <div class="example-box">
+            <h4>Example: Can I get free service for non-subscribed service?</h4>
+            <p><strong>No!</strong> If Raj has Premium Plan but wants "Deep Wash" (not in plan), he must pay full price. Subscription only covers <em>specific listed services</em>.</p>
+        </div>
+        
+        <!-- PART 5: Daily Limit Rule -->
+        <h2>⏰ Daily Limit Rule</h2>
+        
+        <div class="example-box">
+            <h4>The Golden Rule: ONE Service Per Day Per Vehicle</h4>
+            <p>Once you book any subscription service for a vehicle, you CANNOT book another subscription service for that same vehicle until the next day - <strong>even if you cancel</strong>.</p>
+        </div>
+        
+        <h3>Example - What Happens:</h3>
+        
+        <table>
+            <tr>
+                <th>Time</th>
+                <th>Action</th>
+                <th>Result</th>
+            </tr>
+            <tr>
+                <td>Day 1, 9 AM</td>
+                <td>Book Exterior Wash</td>
+                <td class="status-yes">✅ Success</td>
+            </tr>
+            <tr>
+                <td>Day 1, 2 PM</td>
+                <td>Book Interior Vacuum</td>
+                <td class="status-no">❌ BLOCKED</td>
+            </tr>
+            <tr>
+                <td>Day 1, 4 PM</td>
+                <td>Cancel 9 AM booking</td>
+                <td class="status-yes">✅ Cancelled</td>
+            </tr>
+            <tr>
+                <td>Day 1, 5 PM</td>
+                <td>Book Interior Vacuum</td>
+                <td class="status-no">❌ Still BLOCKED</td>
+            </tr>
+            <tr>
+                <td>Day 2</td>
+                <td>Book Interior Vacuum</td>
+                <td class="status-yes">✅ Success!</td>
+            </tr>
+        </table>
+        
+        <div class="warning-box">
+            <strong>Why can't I re-book after cancelling?</strong><br>
+            Because you already consumed the daily slot by making the first booking. Cancellation doesn't restore it.
+        </div>
+        
+        <!-- PART 6: Usage Counter -->
+        <h2>📊 Usage Counter</h2>
+        
+        <p>All bookings count toward your usage, <strong>regardless of final status</strong>:</p>
+        
+        <table class="status-table">
+            <tr>
+                <th>Booking Status</th>
+                <th>Counts as Used?</th>
+            </tr>
+            <tr>
+                <td>Pending</td>
+                <td class="status-yes">✅ YES</td>
+            </tr>
+            <tr>
+                <td>Confirmed</td>
+                <td class="status-yes">✅ YES</td>
+            </tr>
+            <tr>
+                <td>In Progress</td>
+                <td class="status-yes">✅ YES</td>
+            </tr>
+            <tr>
+                <td>Completed</td>
+                <td class="status-yes">✅ YES</td>
+            </tr>
+            <tr>
+                <td>Cancelled</td>
+                <td class="status-yes">✅ YES (daily slot consumed)</td>
+            </tr>
+            <tr>
+                <td>Lapsed (No-show)</td>
+                <td class="status-yes">✅ YES (penalized)</td>
+            </tr>
+        </table>
+        
+        <h3>Example - Premium Plan (4 services):</h3>
+        <table>
+            <tr>
+                <th>Day</th>
+                <th>Service</th>
+                <th>Status</th>
+                <th>Used/Total</th>
+            </tr>
+            <tr>
+                <td>Day 1</td>
+                <td>Exterior Wash</td>
+                <td>Pending</td>
+                <td>1/4</td>
+            </tr>
+            <tr>
+                <td>Day 3</td>
+                <td>Interior Vacuum</td>
+                <td>Completed</td>
+                <td>2/4</td>
+            </tr>
+            <tr>
+                <td>Day 5</td>
+                <td>Tire Shine</td>
+                <td>Cancelled</td>
+                <td>3/4</td>
+            </tr>
+            <tr>
+                <td>Day 7</td>
+                <td>Dashboard Wipe</td>
+                <td>Lapsed</td>
+                <td>4/4</td>
+            </tr>
+        </table>
+        
+        <div class="warning-box">
+            <strong>After Day 7:</strong> Raj has 0 remaining services. He cannot book more until plan renews or expires. Cancellation didn't restore his count!
+        </div>
+        
+        <!-- PART 7: FAQ -->
+        <h2>❓ Frequently Asked Questions</h2>
+        
+        <div class="faq-item">
+            <div class="faq-question">Q1: Can I cancel my subscription plan?</div>
+            <div class="faq-answer"><strong>❌ NO.</strong> Only Admin can cancel subscription plans. You cannot cancel it yourself. You must wait until it expires naturally or contact support.</div>
+        </div>
+        
+        <div class="faq-item">
+            <div class="faq-question">Q2: Can I cancel a subscription service booking?</div>
+            <div class="faq-answer"><strong>✅ YES.</strong> You can cancel your service bookings, but: The service still counts as "used", you cannot book another service that day, and your remaining services do NOT increase.</div>
+        </div>
+        
+        <div class="faq-item">
+            <div class="faq-question">Q3: I cancelled my booking. Why can't I book again today?</div>
+            <div class="faq-answer">Because the <strong>daily limit is 1 per day per vehicle</strong>. Once you booked (even if you cancelled), that day's slot is consumed. Try again tomorrow.</div>
+        </div>
+        
+        <div class="faq-item">
+            <div class="faq-question">Q4: Can I use subscription for any vehicle?</div>
+            <div class="faq-answer"><strong>❌ NO.</strong> Each subscription is tied to ONE specific vehicle. The vehicle is locked when you purchase the plan.</div>
+        </div>
+        
+        <div class="faq-item">
+            <div class="faq-question">Q5: Can my friend use my subscription?</div>
+            <div class="faq-answer"><strong>❌ NO.</strong> Subscriptions are per-user, per-vehicle. Only the person who purchased can use it.</div>
+        </div>
+        
+        <div class="faq-item">
+            <div class="faq-question">Q6: I want a service not in my plan. Can I get it free?</div>
+            <div class="faq-answer"><strong>❌ NO.</strong> Only services listed in your plan are free. Other services cost full price.</div>
+        </div>
+        
+        <div class="faq-item">
+            <div class="faq-question">Q7: What happens when my subscription expires?</div>
+            <div class="faq-answer">The vehicle badge disappears, you cannot book free services, but you can purchase a new subscription. Existing bookings continue until completed.</div>
+        </div>
+        
+        <div class="faq-item">
+            <div class="faq-question">Q8: Can I share one subscription between two vehicles?</div>
+            <div class="faq-answer"><strong>❌ NO.</strong> Each vehicle needs its own subscription. They are vehicle-specific.</div>
+        </div>
+        
+        <div class="faq-item">
+            <div class="faq-question">Q9: What if I miss my appointment (lapsed)?</div>
+            <div class="faq-answer">The lapsed booking still counts as "used" against your plan. You lose that service opportunity.</div>
+        </div>
+        
+        <div class="faq-item">
+            <div class="faq-question">Q10: Can I get a refund for unused services?</div>
+            <div class="faq-answer">Contact Admin. User cancellations do not restore service counts.</div>
+        </div>
+        
+        <div class="faq-item">
+            <div class="faq-question">Q11: Do regular paid services count toward subscription?</div>
+            <div class="faq-answer"><strong>❌ NO.</strong> Paid regular services are completely separate. They do not affect your subscription usage or limits.</div>
+        </div>
+        
+        <div class="faq-item">
+            <div class="faq-question">Q12: Can I book services for different vehicles on the same day?</div>
+            <div class="faq-answer"><strong>✅ YES!</strong> Daily limit is per vehicle, not per user. You can book one service for Fortuner and one for Innova on the same day.</div>
+        </div>
+        
+        <!-- PART 8: Quick Reference -->
+        <h2>📋 Quick Reference: Subscription vs Regular</h2>
+        
+        <table class="comparison-table">
+            <tr>
+                <th>Aspect</th>
+                <th>Subscription Service</th>
+                <th>Regular Service</th>
+            </tr>
+            <tr>
+                <td><strong>Entry Point</strong></td>
+                <td>My Booking → My Subscription</td>
+                <td>Standard Care → Book Now</td>
+            </tr>
+            <tr>
+                <td><strong>Vehicle</strong></td>
+                <td>Pre-selected (locked)</td>
+                <td>Choose any from dropdown</td>
+            </tr>
+            <tr>
+                <td><strong>Price</strong></td>
+                <td>FREE (₹0)</td>
+                <td>Full price</td>
+            </tr>
+            <tr>
+                <td><strong>Time Slot</strong></td>
+                <td>Not required</td>
+                <td>REQUIRED (9AM-7:30PM)</td>
+            </tr>
+            <tr>
+                <td><strong>Daily Limit</strong></td>
+                <td>1 per day per vehicle</td>
+                <td>No limit</td>
+            </tr>
+            <tr>
+                <td><strong>Counts as Used</strong></td>
+                <td>Yes</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td><strong>Button</strong></td>
+                <td>"CONFIRM BOOKING"</td>
+                <td>"PAY ₹XXX"</td>
+            </tr>
+        </table>
+        
+        <!-- PART 9: Summary -->
+        <div class="summary-box">
+            <h3>📌 SIMPLE RULES TO REMEMBER</h3>
+            
+            <div class="summary-item">
+                <strong>🟢 SUBSCRIPTION PLAN:</strong><br>
+                • One vehicle, one plan<br>
+                • Valid for X days (30/90/365)<br>
+                • Cannot cancel yourself (admin only)<br>
+                • Badge shows 🟢 SUBSCRIBED if active
+            </div>
+            
+            <div class="summary-item">
+                <strong>🔵 SUBSCRIPTION SERVICE (FREE):</strong><br>
+                • Enter via: My Booking → My Subscription<br>
+                • Vehicle is pre-selected (locked)<br>
+                • Price: ₹0 (FREE)<br>
+                • Daily limit: 1 service per day<br>
+                • Time slot: Not needed
+            </div>
+            
+            <div class="summary-item">
+                <strong>🟡 REGULAR SERVICE (PAID):</strong><br>
+                • Enter via: Standard Care → Book Now<br>
+                • Vehicle: Choose any<br>
+                • Price: Full price<br>
+                • Daily limit: None<br>
+                • Time slot: REQUIRED
+            </div>
+            
+            <div class="summary-item">
+                <strong>📊 USAGE TRACKING:</strong><br>
+                • ALL statuses count as used<br>
+                • Cancelled, lapsed ALSO count<br>
+                • Cancellation does NOT restore count
+            </div>
+            
+            <div class="summary-item">
+                <strong>⏰ DAILY LIMIT:</strong><br>
+                • 1 service per day per vehicle<br>
+                • Cancellation does NOT reset<br>
+                • Must wait until next day
+            </div>
+        </div>
+        
+        <p style="text-align: center; color: #666; margin-top: 30px;">
+            <strong>Need Help?</strong> Contact us through the Chat option in the app.<br>
+            <small>DriveGlow Car Wash | driveglow.in</small>
+        </p>
+    </div>
+</body>
+</html>
