@@ -11,20 +11,23 @@ import '../../domain/models/standard_service_model.dart';
 import '../../theme/app_theme.dart';
 
 class SubscriptionServicesBookingScreen extends ConsumerStatefulWidget {
-  final VoidCallback? onRefresh;  // Callback to trigger parent refresh
+  final VoidCallback? onRefresh; // Callback to trigger parent refresh
 
   const SubscriptionServicesBookingScreen({super.key, this.onRefresh});
 
   @override
-  ConsumerState<SubscriptionServicesBookingScreen> createState() => _SubscriptionServicesBookingScreenState();
+  ConsumerState<SubscriptionServicesBookingScreen> createState() =>
+      _SubscriptionServicesBookingScreenState();
 }
 
-class _SubscriptionServicesBookingScreenState extends ConsumerState<SubscriptionServicesBookingScreen> {
+class _SubscriptionServicesBookingScreenState
+    extends ConsumerState<SubscriptionServicesBookingScreen> {
   bool _isLoading = true;
   bool _isCancelling = false;
   Map<String, int> _serviceUsage = {};
   bool _hasBookedToday = false;
-  
+  bool _isServiceCenterOpen = true;
+
   // Subscription data from arguments
   String _planId = '';
   String _planName = 'Subscription';
@@ -36,6 +39,13 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
   Map<String, int> _serviceLimits = {}; // Per-service limits
   int _dailyLimit = 1;
 
+  bool _checkServiceCenterOpen() {
+    final now = DateTime.now();
+    final openTime = DateTime(now.year, now.month, now.day, 8, 0); // 8:00 AM
+    final closeTime = DateTime(now.year, now.month, now.day, 19, 30); // 7:30 PM
+    return now.isAfter(openTime) && now.isBefore(closeTime);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -45,8 +55,9 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
   }
 
   void _loadData() {
-    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-    
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+
     setState(() {
       _planId = args?['planId'] as String? ?? '';
       _planName = args?['planName'] as String? ?? 'Subscription';
@@ -54,27 +65,33 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
       _vehicleNumber = args?['vehicleNumber'] as String? ?? '';
       _totalServices = args?['totalAllowed'] as int? ?? 0;
       _expiresAt = args?['expiresAt'] as String? ?? '';
-      _allowedServiceIds = (args?['allowedServiceIds'] as List?)
-          ?.map((e) => e.toString())
-          .toList() ?? [];
-      
+      _allowedServiceIds =
+          (args?['allowedServiceIds'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [];
+
       // Load per-service limits from arguments
       final serviceLimitsArg = args?['serviceLimits'] as Map<String, dynamic>?;
       if (serviceLimitsArg != null) {
-        _serviceLimits = serviceLimitsArg.map((key, value) => MapEntry(key.toString(), (value as num).toInt()));
+        _serviceLimits = serviceLimitsArg.map(
+          (key, value) => MapEntry(key.toString(), (value as num).toInt()),
+        );
       }
-      
+
       _dailyLimit = args?['dailyLimit'] as int? ?? 1;
+      _isServiceCenterOpen = _checkServiceCenterOpen();
       _isLoading = false;
     });
-    
+
     _loadServiceUsage();
   }
 
   Future<void> _loadServiceUsage() async {
     final user = Supabase.instance.client.auth.currentUser;
-    if (user == null || _vehicleNumber.isEmpty || _allowedServiceIds.isEmpty) return;
-    
+    if (user == null || _vehicleNumber.isEmpty || _allowedServiceIds.isEmpty)
+      return;
+
     try {
       final usage = await BookingValidationHelper.getPerServiceUsage(
         userId: user.id,
@@ -82,14 +99,15 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
         planId: _planId,
         includedServiceIds: _allowedServiceIds,
       );
-      
+
       // Check daily limit
-      final hasBookedToday = await BookingValidationHelper.hasBookedTodayForSubscription(
-        userId: user.id,
-        planId: _planId,
-        vehicleNumber: _vehicleNumber,
-      );
-      
+      final hasBookedToday =
+          await BookingValidationHelper.hasBookedTodayForSubscription(
+            userId: user.id,
+            planId: _planId,
+            vehicleNumber: _vehicleNumber,
+          );
+
       if (mounted) {
         setState(() {
           _serviceUsage = usage;
@@ -109,7 +127,9 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Cancel Subscription'),
-        content: Text('Are you sure you want to cancel the subscription for $_vehicleNumber? This action cannot be undone.'),
+        content: Text(
+          'Are you sure you want to cancel the subscription for $_vehicleNumber? This action cannot be undone.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -166,10 +186,11 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
             .order('created_at', ascending: false)
             .limit(5)
             .timeout(const Duration(seconds: 10));
-        
+
         for (final b in altBookings) {
           final serviceId = (b['service_id'] ?? '').toString();
-          if (serviceId.contains('subscription') || serviceId.contains(_planId)) {
+          if (serviceId.contains('subscription') ||
+              serviceId.contains(_planId)) {
             await Supabase.instance.client
                 .from('bookings')
                 .update({'status': 'cancelled'})
@@ -235,6 +256,12 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
       return const Center(child: CircularProgressIndicator());
     }
 
+    // Check if service center is closed
+    final isOpen = _checkServiceCenterOpen();
+    if (!isOpen) {
+      return _buildServiceCenterClosedMessage();
+    }
+
     return RefreshIndicator(
       onRefresh: () async {
         ref.invalidate(activeStandardServicesProvider);
@@ -245,9 +272,9 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
         children: [
           // Subscription Details Card
           _buildSubscriptionCard(),
-          
+
           const SizedBox(height: 24),
-          
+
           // Available Services Header
           Text(
             'AVAILABLE SERVICES',
@@ -258,9 +285,9 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
               letterSpacing: 1,
             ),
           ),
-          
+
           const SizedBox(height: 12),
-          
+
           // Services List
           servicesAsync.when(
             loading: () => const Center(
@@ -278,6 +305,47 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
           // Fair Usage Policy
           _buildFairUsagePolicy(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildServiceCenterClosedMessage() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.access_time_rounded, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'Service Center Closed',
+              style: GoogleFonts.inter(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Service Center Hours: 8:00 AM - 7:30 PM\nYou can book subscription services during these hours only.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 24),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Go Back',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: PremiumTheme.orangePrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -347,7 +415,10 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
           children: [
             Icon(Icons.shield_outlined, color: PremiumTheme.orangePrimary),
             const SizedBox(width: 8),
-            Text('Fair Usage Policy', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+            Text(
+              'Fair Usage Policy',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+            ),
           ],
         ),
         content: SingleChildScrollView(
@@ -357,31 +428,50 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
             children: [
               Text(
                 'Your Subscription Benefits',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14),
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
               ),
               const SizedBox(height: 12),
               if (_serviceLimits.isNotEmpty) ...[
-                ..._serviceLimits.entries.map((e) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(child: Text(e.key, style: GoogleFonts.inter(fontSize: 13))),
-                      Text(
-                        '${e.value}/month',
-                        style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
-                      ),
-                    ],
+                ..._serviceLimits.entries.map(
+                  (e) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            e.key,
+                            style: GoogleFonts.inter(fontSize: 13),
+                          ),
+                        ),
+                        Text(
+                          '${e.value}/month',
+                          style: GoogleFonts.inter(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                )),
+                ),
                 const Divider(),
               ],
               if (_totalServices > 0) ...[
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Total Monthly Services', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-                    Text('$_totalServices', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                    Text(
+                      'Total Monthly Services',
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      '$_totalServices',
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                    ),
                   ],
                 ),
                 if (_duration == 'Yearly') ...[
@@ -389,8 +479,20 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Yearly Total', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600])),
-                      Text('${_totalServices * 12}/year', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600])),
+                      Text(
+                        'Yearly Total',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      Text(
+                        '${_totalServices * 12}/year',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -399,8 +501,14 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Daily Limit', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-                  Text('$_dailyLimit service${_dailyLimit > 1 ? 's' : ''}/day', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                  Text(
+                    'Daily Limit',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    '$_dailyLimit service${_dailyLimit > 1 ? 's' : ''}/day',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                  ),
                 ],
               ),
               if (_duration == 'Yearly') ...[
@@ -408,8 +516,14 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Monthly Reset', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-                    Text('Every 30 days', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                    Text(
+                      'Monthly Reset',
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      'Every 30 days',
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                    ),
                   ],
                 ),
               ],
@@ -418,7 +532,10 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
               const SizedBox(height: 8),
               Text(
                 'Important Notes',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13),
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
               ),
               const SizedBox(height: 8),
               _buildPolicyPoint('Unused services do not carry forward'),
@@ -431,7 +548,10 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Close', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+            child: Text(
+              'Close',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
@@ -446,7 +566,10 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
         children: [
           Text('• ', style: GoogleFonts.inter(fontSize: 12)),
           Expanded(
-            child: Text(text, style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[700])),
+            child: Text(
+              text,
+              style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[700]),
+            ),
           ),
         ],
       ),
@@ -454,9 +577,14 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
   }
 
   Widget _buildSubscriptionCard() {
-    final isExpired = _expiresAt.isNotEmpty && DateTime.now().isAfter(DateTime.tryParse(_expiresAt) ?? DateTime.now());
-    final daysRemaining = _expiresAt.isNotEmpty 
-        ? DateTime.now().difference(DateTime.tryParse(_expiresAt) ?? DateTime.now()).inDays.abs()
+    final isExpired =
+        _expiresAt.isNotEmpty &&
+        DateTime.now().isAfter(DateTime.tryParse(_expiresAt) ?? DateTime.now());
+    final daysRemaining = _expiresAt.isNotEmpty
+        ? DateTime.now()
+              .difference(DateTime.tryParse(_expiresAt) ?? DateTime.now())
+              .inDays
+              .abs()
         : 0;
 
     return Container(
@@ -511,7 +639,10 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
@@ -527,9 +658,9 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Vehicle Info
             if (_vehicleNumber.isNotEmpty)
               Container(
@@ -540,7 +671,11 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.directions_car, color: Colors.white, size: 24),
+                    const Icon(
+                      Icons.directions_car,
+                      color: Colors.white,
+                      size: 24,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -567,26 +702,33 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
                   ],
                 ),
               ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Expiry Info
             if (_expiresAt.isNotEmpty)
               Row(
                 children: [
-                  Icon(Icons.calendar_today, color: Colors.white.withValues(alpha: 0.8), size: 16),
+                  Icon(
+                    Icons.calendar_today,
+                    color: Colors.white.withValues(alpha: 0.8),
+                    size: 16,
+                  ),
                   const SizedBox(width: 8),
                   Text(
-                    isExpired 
+                    isExpired
                         ? 'Expired on ${DateFormat('MMM dd, yyyy').format(DateTime.tryParse(_expiresAt) ?? DateTime.now())}'
                         : 'Valid till ${DateFormat('MMM dd, yyyy').format(DateTime.tryParse(_expiresAt) ?? DateTime.now())} ($daysRemaining days)',
-                    style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: 0.9)),
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: Colors.white.withValues(alpha: 0.9),
+                    ),
                   ),
                 ],
               ),
-            
+
             const SizedBox(height: 20),
-            
+
             // Contact Support Message (Subscriptions can only be cancelled by admin)
             Container(
               padding: const EdgeInsets.all(12),
@@ -630,7 +772,10 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
           const SizedBox(height: 12),
           Text(
             'Failed to load services',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.red[700]),
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w600,
+              color: Colors.red[700],
+            ),
           ),
           const SizedBox(height: 8),
           ElevatedButton(
@@ -648,11 +793,18 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            Icon(Icons.settings_applications, size: 48, color: Colors.grey[300]),
+            Icon(
+              Icons.settings_applications,
+              size: 48,
+              color: Colors.grey[300],
+            ),
             const SizedBox(height: 12),
             Text(
               'No services configured',
-              style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600),
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -665,8 +817,10 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
       );
     }
 
-    final filtered = services.where((s) => _allowedServiceIds.contains(s.id)).toList();
-    
+    final filtered = services
+        .where((s) => _allowedServiceIds.contains(s.id))
+        .toList();
+
     if (filtered.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(24),
@@ -676,7 +830,10 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
             const SizedBox(height: 12),
             Text(
               'No matching services found',
-              style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600),
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
@@ -690,13 +847,18 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
 
   Widget _buildServiceCard(StandardServiceModel service) {
     final usedCount = _serviceUsage[service.id] ?? 0;
-    final int maxUses = _serviceLimits[service.id] ?? (_totalServices > 0 ? _totalServices : 999);
+    final int maxUses =
+        _serviceLimits[service.id] ??
+        (_totalServices > 0 ? _totalServices : 999);
     final remaining = maxUses - usedCount;
     final hasServiceLimit = maxUses != 999;
-    final canBook = !_hasBookedToday && (!hasServiceLimit || usedCount < maxUses);
-    final progressPercent = maxUses > 0 ? (usedCount / maxUses).clamp(0.0, 1.0) : 0.0;
+    final canBook =
+        !_hasBookedToday && (!hasServiceLimit || usedCount < maxUses);
+    final progressPercent = maxUses > 0
+        ? (usedCount / maxUses).clamp(0.0, 1.0)
+        : 0.0;
     final isUnlimited = maxUses == 999;
-    
+
     // Button is disabled if booked today OR if service limit reached
     final isButtonDisabled = _hasBookedToday || !canBook;
 
@@ -728,7 +890,11 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
                   color: PremiumTheme.orangePrimary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.car_repair, color: PremiumTheme.orangePrimary, size: 24),
+                child: const Icon(
+                  Icons.car_repair,
+                  color: PremiumTheme.orangePrimary,
+                  size: 24,
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -737,12 +903,19 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
                   children: [
                     Text(
                       service.name,
-                      style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 15, color: const Color(0xFF0F172A)),
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                        color: const Color(0xFF0F172A),
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       service.description,
-                      style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -751,9 +924,9 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
               ),
             ],
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Usage Progress Bar
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -763,30 +936,51 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
                 children: [
                   Text(
                     isUnlimited ? 'Usage (Unlimited)' : 'Usage',
-                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[700],
+                    ),
                   ),
                   if (!isUnlimited)
                     Text(
                       '$usedCount / $maxUses',
-                      style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.grey[800]),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey[800],
+                      ),
                     )
                   else
                     Row(
                       children: [
                         Text(
                           '∞',
-                          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800, color: PremiumTheme.orangePrimary),
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: PremiumTheme.orangePrimary,
+                          ),
                         ),
                         const SizedBox(width: 4),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
-                            color: PremiumTheme.orangePrimary.withValues(alpha: 0.1),
+                            color: PremiumTheme.orangePrimary.withValues(
+                              alpha: 0.1,
+                            ),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             'UNLIMITED',
-                            style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w700, color: PremiumTheme.orangePrimary),
+                            style: GoogleFonts.inter(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: PremiumTheme.orangePrimary,
+                            ),
                           ),
                         ),
                       ],
@@ -801,7 +995,9 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
                     value: progressPercent,
                     backgroundColor: Colors.grey[200],
                     valueColor: AlwaysStoppedAnimation<Color>(
-                      progressPercent > 0.7 ? Colors.orange : PremiumTheme.orangePrimary,
+                      progressPercent > 0.7
+                          ? Colors.orange
+                          : PremiumTheme.orangePrimary,
                     ),
                     minHeight: 8,
                   ),
@@ -812,14 +1008,19 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
                   children: [
                     Text(
                       'Used: $usedCount',
-                      style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[600]),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: Colors.grey[600],
+                      ),
                     ),
                     Text(
                       remaining >= 0 ? 'Remaining: $remaining' : 'Over limit',
                       style: GoogleFonts.inter(
-                        fontSize: 11, 
+                        fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: remaining > 0 ? const Color(0xFF10B981) : Colors.red,
+                        color: remaining > 0
+                            ? const Color(0xFF10B981)
+                            : Colors.red,
                       ),
                     ),
                   ],
@@ -827,9 +1028,9 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
               ],
             ],
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Book Button
           SizedBox(
             width: double.infinity,
@@ -841,28 +1042,38 @@ class _SubscriptionServicesBookingScreenState extends ConsumerState<Subscription
                       if (isGuest) {
                         Navigator.pushNamed(context, '/login');
                       } else {
-                        Navigator.pushNamed(context, '/payment', arguments: {
-                          'isService': true,
-                          'serviceId': service.id,
-                          'serviceName': service.name,
-                          'serviceDescription': service.description,
-                          'servicePrice': service.price,
-                          'fromSubscriptionBooking': true,
-                          'subscriptionPlanId': _planId,
-                          'subscriptionPlanName': _planName,
-                          'autoCouponName': 'Subscription',
-                          'selectedVehicleNumber': _vehicleNumber,
-                        });
+                        Navigator.pushNamed(
+                          context,
+                          '/payment',
+                          arguments: {
+                            'isService': true,
+                            'serviceId': service.id,
+                            'serviceName': service.name,
+                            'serviceDescription': service.description,
+                            'servicePrice': service.price,
+                            'fromSubscriptionBooking': true,
+                            'subscriptionPlanId': _planId,
+                            'subscriptionPlanName': _planName,
+                            'autoCouponName': 'Subscription',
+                            'selectedVehicleNumber': _vehicleNumber,
+                          },
+                        );
                       }
                     },
               style: ElevatedButton.styleFrom(
-                backgroundColor: isButtonDisabled ? Colors.grey[400] : PremiumTheme.orangePrimary,
+                backgroundColor: isButtonDisabled
+                    ? Colors.grey[400]
+                    : PremiumTheme.orangePrimary,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
               child: Text(
-                _hasBookedToday ? 'BOOKED TODAY' : (canBook ? 'BOOK NOW' : 'LIMIT REACHED'),
+                _hasBookedToday
+                    ? 'BOOKED TODAY'
+                    : (canBook ? 'BOOK NOW' : 'LIMIT REACHED'),
               ),
             ),
           ),

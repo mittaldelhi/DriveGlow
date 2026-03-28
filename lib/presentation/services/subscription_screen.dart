@@ -60,17 +60,22 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
         setState(() {
           _vehicles = vehicles;
           _isLoadingVehicles = false;
-          
-          if (_preselectedVehicleId != null && _preselectedVehicleNumber != null) {
+
+          if (_preselectedVehicleId != null &&
+              _preselectedVehicleNumber != null) {
             try {
               _selectedVehicle = vehicles.firstWhere(
-                (v) => v.id == _preselectedVehicleId || v.licensePlate == _preselectedVehicleNumber,
+                (v) =>
+                    v.id == _preselectedVehicleId ||
+                    v.licensePlate == _preselectedVehicleNumber,
               );
             } catch (e) {
-              _selectedVehicle = vehicles.isNotEmpty ? vehicles.firstWhere(
-                (v) => v.isPrimary,
-                orElse: () => vehicles.first,
-              ) : null;
+              _selectedVehicle = vehicles.isNotEmpty
+                  ? vehicles.firstWhere(
+                      (v) => v.isPrimary,
+                      orElse: () => vehicles.first,
+                    )
+                  : null;
             }
           } else if (vehicles.isNotEmpty && _selectedVehicle == null) {
             _selectedVehicle = vehicles.firstWhere(
@@ -90,49 +95,38 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
 
   Future<_CurrentPlanContext?> _loadCurrentPlanContext() async {
     if (_selectedVehicle == null) return null;
-    
+
     final client = Supabase.instance.client;
     final user = client.auth.currentUser;
     if (user == null) return null;
 
-    final bookingRows = await client
-        .from('bookings')
-        .select('service_id,created_at,status,vehicle_number')
+    final now = DateTime.now();
+    final normalizedPlate = _selectedVehicle!.licensePlate.toUpperCase().trim();
+
+    // Primary: Check user_subscriptions table (source of truth)
+    final subscriptionRows = await client
+        .from('user_subscriptions')
+        .select('id, plan_id, plan_name, duration, valid_until, is_active')
         .eq('user_id', user.id)
-        .like('service_id', 'subscription::%')
-        .neq('status', 'cancelled')
-        .eq('vehicle_number', _selectedVehicle!.licensePlate.toUpperCase())
-        .order('created_at', ascending: false)
+        .ilike('vehicle_number', normalizedPlate)
+        .eq('is_active', true)
+        .gt('valid_until', now.toIso8601String())
         .limit(1);
 
-    if ((bookingRows as List).isEmpty) return null;
-    final serviceId = (bookingRows.first['service_id'] ?? '').toString();
-    final parts = serviceId.split('::');
-    if (parts.length < 3) return null;
-    final planId = parts[1];
-    final planName = parts.sublist(2).join('::');
+    if ((subscriptionRows as List).isNotEmpty) {
+      final sub = subscriptionRows.first;
+      final planId = sub['plan_id']?.toString() ?? '';
+      final planName = sub['plan_name']?.toString() ?? '';
+      final duration = sub['duration']?.toString() ?? '';
 
-    try {
-      final plan = await client
-          .from('subscription_plans')
-          .select('id,duration,name')
-          .eq('id', planId)
-          .maybeSingle();
-      if (plan != null) {
-        final duration = _normalizeDuration((plan['duration'] ?? '').toString());
-        return _CurrentPlanContext(
-          planId: planId,
-          planName: (plan['name'] ?? planName).toString(),
-          duration: duration,
-        );
-      }
-    } catch (_) {}
+      return _CurrentPlanContext(
+        planId: planId,
+        planName: planName,
+        duration: _normalizeDuration(duration),
+      );
+    }
 
-    return _CurrentPlanContext(
-      planId: planId,
-      planName: planName,
-      duration: _normalizeDuration(planName),
-    );
+    return null;
   }
 
   String _normalizeDuration(String raw) {
@@ -277,129 +271,133 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
               centerTitle: true,
             ),
             body: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            // Header
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 24,
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      'Choose Your Plan',
-                      style: GoogleFonts.playfairDisplay(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w900,
-                        color: const Color(0xFF0F172A),
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      currentPlan == null
-                          ? 'Choose a monthly or yearly plan.'
-                          : currentPlan.duration == 'Monthly'
-                              ? 'Current plan is Monthly. Upgrade to Yearly only.'
-                              : 'Current plan is Yearly. Downgrade is disabled.',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        color: Colors.grey[500],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    if (_vehicles.isNotEmpty) ...[
-                      const SizedBox(height: 20),
-                      _buildVehicleDropdown(),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-
-            // Billing Toggle
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: _StickyToggleDelegate(
-                  child: Container(
-                    color: const Color(0xFFF8F6F6),
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                // Header
+                SliverToBoxAdapter(
+                  child: Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 10,
+                      horizontal: 24,
+                      vertical: 24,
                     ),
-                  child: _buildBillingToggle(currentPlan),
-                ),
-              ),
-            ),
-
-            // Plans
-            SliverToBoxAdapter(
-              child: plansAsync.when(
-                loading: () => const Padding(
-                  padding: EdgeInsets.all(40),
-                  child: Center(
-                    child: CircularProgressIndicator(color: Color(0xFFF0541E)),
-                  ),
-                ),
-                error: (err, _) => Padding(
-                  padding: const EdgeInsets.all(40),
-                  child: Center(
                     child: Column(
                       children: [
-                        Icon(Icons.error_outline, color: Colors.grey[400]),
-                        const SizedBox(height: 12),
                         Text(
-                          'Failed to load plans',
-                          style: GoogleFonts.inter(color: Colors.grey[600]),
-                        ),
-                        TextButton(
-                          onPressed: () => ref.invalidate(
-                            subscriptionPlansByDurationProvider(_billingPeriod),
+                          'Choose Your Plan',
+                          style: GoogleFonts.playfairDisplay(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900,
+                            color: const Color(0xFF0F172A),
+                            letterSpacing: -0.5,
                           ),
-                          child: const Text('Retry'),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          currentPlan == null
+                              ? 'Choose a monthly or yearly plan.'
+                              : currentPlan.duration == 'Monthly'
+                              ? 'Current plan is Monthly. Upgrade to Yearly only.'
+                              : 'Current plan is Yearly. Downgrade is disabled.',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: Colors.grey[500],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        if (_vehicles.isNotEmpty) ...[
+                          const SizedBox(height: 20),
+                          _buildVehicleDropdown(),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Billing Toggle
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _StickyToggleDelegate(
+                    child: Container(
+                      color: const Color(0xFFF8F6F6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
+                      child: _buildBillingToggle(currentPlan),
+                    ),
+                  ),
+                ),
+
+                // Plans
+                SliverToBoxAdapter(
+                  child: plansAsync.when(
+                    loading: () => const Padding(
+                      padding: EdgeInsets.all(40),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFFF0541E),
+                        ),
+                      ),
+                    ),
+                    error: (err, _) => Padding(
+                      padding: const EdgeInsets.all(40),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            Icon(Icons.error_outline, color: Colors.grey[400]),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Failed to load plans',
+                              style: GoogleFonts.inter(color: Colors.grey[600]),
+                            ),
+                            TextButton(
+                              onPressed: () => ref.invalidate(
+                                subscriptionPlansByDurationProvider(
+                                  _billingPeriod,
+                                ),
+                              ),
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    data: (plans) => _buildPlansContent(plans, currentPlan),
+                  ),
+                ),
+
+                // Footer
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(40.0),
+                    child: Column(
+                      children: [
+                        Text(
+                          'By selecting a plan, you agree to our Terms of Service. Plans automatically renew unless cancelled 24h before end of period.',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: Colors.grey[400],
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        TextButton(
+                          onPressed: () {},
+                          child: Text(
+                            'Cancel Subscription',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.red[400],
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                data: (plans) => _buildPlansContent(plans, currentPlan),
-              ),
-            ),
-
-            // Footer
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(40.0),
-                child: Column(
-                  children: [
-                    Text(
-                      'By selecting a plan, you agree to our Terms of Service. Plans automatically renew unless cancelled 24h before end of period.',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: Colors.grey[400],
-                        height: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    TextButton(
-                      onPressed: () {},
-                      child: Text(
-                        'Cancel Subscription',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.red[400],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+              ],
             ),
           ),
         );
@@ -538,8 +536,8 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                   color: disabled
                       ? Colors.grey[300]
                       : isSelected
-                          ? Colors.white
-                          : Colors.grey[400],
+                      ? Colors.white
+                      : Colors.grey[400],
                 ),
               ),
               if (hasBadge && _billingPeriod == 'Yearly')
@@ -676,8 +674,8 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          plan.showUnlimited 
-                              ? 'Unlimited services/month' 
+                          plan.showUnlimited
+                              ? 'Unlimited services/month'
                               : '${plan.serviceUsageLimits?.values.fold(0, (sum, v) => sum + v) ?? 0} services/month',
                           style: GoogleFonts.inter(
                             fontSize: 13,
@@ -757,7 +755,11 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.check_circle, color: Colors.green[700], size: 18),
+                        Icon(
+                          Icons.check_circle,
+                          color: Colors.green[700],
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Already Subscribed for this vehicle',
@@ -787,7 +789,8 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                                 'duration': plan.duration,
                                 'price': plan.price,
                                 'selectedVehicleId': _selectedVehicle?.id,
-                                'selectedVehicleNumber': _selectedVehicle?.licensePlate,
+                                'selectedVehicleNumber':
+                                    _selectedVehicle?.licensePlate,
                               },
                             );
                           }
@@ -911,8 +914,8 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        plan.showUnlimited 
-                            ? 'Unlimited services/month' 
+                        plan.showUnlimited
+                            ? 'Unlimited services/month'
                             : '${plan.serviceUsageLimits?.values.fold(0, (sum, v) => sum + v) ?? 0} services/month',
                         style: GoogleFonts.inter(
                           fontSize: 14,
@@ -1028,7 +1031,11 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.check_circle, color: Colors.green[700], size: 18),
+                        Icon(
+                          Icons.check_circle,
+                          color: Colors.green[700],
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Already Subscribed for this vehicle',
@@ -1075,7 +1082,8 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                                   'duration': plan.duration,
                                   'price': plan.price,
                                   'selectedVehicleId': _selectedVehicle?.id,
-                                  'selectedVehicleNumber': _selectedVehicle?.licensePlate,
+                                  'selectedVehicleNumber':
+                                      _selectedVehicle?.licensePlate,
                                 },
                               );
                             }
@@ -1157,13 +1165,22 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     final currentDuration = _normalizeDuration(currentPlan.duration);
     final targetDuration = _normalizeDuration(plan.duration);
     if (currentDuration == 'Yearly' && targetDuration == 'Monthly') {
-      return const _PlanActionState(canProceed: false, label: 'Downgrade Disabled');
+      return const _PlanActionState(
+        canProceed: false,
+        label: 'Downgrade Disabled',
+      );
     }
     if (currentDuration == 'Monthly' && targetDuration == 'Yearly') {
-      return const _PlanActionState(canProceed: true, label: 'Upgrade to Yearly');
+      return const _PlanActionState(
+        canProceed: true,
+        label: 'Upgrade to Yearly',
+      );
     }
     if (currentDuration == targetDuration) {
-      return const _PlanActionState(canProceed: false, label: 'Current Duration');
+      return const _PlanActionState(
+        canProceed: false,
+        label: 'Current Duration',
+      );
     }
     return const _PlanActionState(canProceed: false, label: 'Not Available');
   }

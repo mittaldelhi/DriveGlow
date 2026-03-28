@@ -60,25 +60,26 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     _vehicles.addAll(profile.vehicles);
 
     _isInitialized = true;
-    
+
     _loadSubscriptionStatus();
   }
 
   Future<void> _loadSubscriptionStatus() async {
     if (_vehicles.isEmpty) return;
-    
+
     final user = ref.read(currentUserProvider);
     if (user == null) return;
-    
+
     setState(() => _isLoadingSubscriptionStatus = true);
-    
+
     try {
       final vehicleNumbers = _vehicles.map((v) => v.licensePlate).toList();
-      final status = await BookingValidationHelper.getAllVehiclesSubscriptionStatus(
-        userId: user.id,
-        vehicleNumbers: vehicleNumbers,
-      );
-      
+      final status =
+          await BookingValidationHelper.getAllVehiclesSubscriptionStatus(
+            userId: user.id,
+            vehicleNumbers: vehicleNumbers,
+          );
+
       if (mounted) {
         setState(() {
           _vehicleSubscriptionStatus = status;
@@ -138,25 +139,27 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   Future<void> _removeVehicle(int index) async {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
-    
+
     final vehicleToRemove = _vehicles[index];
-    
-    final hasActiveSubscription = await BookingValidationHelper.hasActiveSubscriptionForVehicle(
-      userId: user.id,
-      vehicleNumber: vehicleToRemove.licensePlate,
-    );
-    
+
+    final hasActiveSubscription =
+        await BookingValidationHelper.hasActiveSubscriptionForVehicle(
+          userId: user.id,
+          vehicleNumber: vehicleToRemove.licensePlate,
+        );
+
     if (hasActiveSubscription) {
       if (mounted) {
         showErrorDialog(
           context,
-          message: 'Cannot delete vehicle with active subscription. Please cancel your subscription first.',
+          message:
+              'Cannot delete vehicle with active subscription. Please cancel your subscription first.',
           title: 'Cannot Delete Vehicle',
         );
       }
       return;
     }
-    
+
     setState(() => _vehicles.removeAt(index));
   }
 
@@ -207,8 +210,43 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       // However, we'll use our repo to update/insert.
       final repo = ref.read(userRepositoryProvider);
 
-      // First, fetch current vehicles from DB to identify deletions
+      // Check if any vehicle with subscription has license plate changed
       final dbVehicles = await repo.getVehicles(user.id);
+      for (final updatedVehicle in _vehicles) {
+        final dbVehicle = dbVehicles
+            .where((v) => v.id == updatedVehicle.id)
+            .firstOrNull;
+        if (dbVehicle != null) {
+          // Check if license plate was changed
+          if (dbVehicle.licensePlate.toUpperCase() !=
+              updatedVehicle.licensePlate.toUpperCase()) {
+            // License plate changed - check if vehicle has active subscription
+            final hasSubscription =
+                await BookingValidationHelper.hasActiveSubscription(
+                  userId: user.id,
+                  vehicleNumber: dbVehicle.licensePlate,
+                );
+            if (hasSubscription) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Cannot edit license plate for "${dbVehicle.model}" - vehicle has active subscription. Please cancel subscription first.',
+                    ),
+                    backgroundColor: Colors.red,
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 4),
+                  ),
+                );
+              }
+              setState(() => _isLoading = false);
+              return;
+            }
+          }
+        }
+      }
+
+      // First, fetch current vehicles from DB to identify deletions
       for (var dbV in dbVehicles) {
         bool stillExists = _vehicles.any((v) => v.id == dbV.id);
         if (!stillExists) {
@@ -236,7 +274,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        showErrorDialog(context, message: e.toString(), title: 'Operation Failed');
+        showErrorDialog(
+          context,
+          message: e.toString(),
+          title: 'Operation Failed',
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -520,8 +562,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             separatorBuilder: (context, index) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final vehicle = _vehicles[index];
-              final hasSubscription = _vehicleSubscriptionStatus[vehicle.licensePlate.toUpperCase()] ?? false;
-              
+              final hasSubscription =
+                  _vehicleSubscriptionStatus[vehicle.licensePlate
+                      .toUpperCase()] ??
+                  false;
+
               return Stack(
                 children: [
                   Container(
@@ -540,7 +585,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE85A10).withValues(alpha: 0.05),
+                            color: const Color(
+                              0xFFE85A10,
+                            ).withValues(alpha: 0.05),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Icon(
@@ -624,7 +671,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       top: 8,
                       right: 8,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.green,
                           borderRadius: BorderRadius.circular(4),
@@ -632,7 +682,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.check_circle, color: Colors.white, size: 12),
+                            const Icon(
+                              Icons.check_circle,
+                              color: Colors.white,
+                              size: 12,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               'SUBSCRIBED',
@@ -942,9 +996,11 @@ class _VehicleFormSheetState extends State<_VehicleFormSheet> {
           ElevatedButton(
             onPressed: () async {
               if (_modelController.text.isEmpty) return;
-              
-              final newLicensePlate = _plateController.text.trim().toUpperCase();
-              
+
+              final newLicensePlate = _plateController.text
+                  .trim()
+                  .toUpperCase();
+
               final newVehicle = VehicleModel(
                 id: widget.vehicle?.id ?? '',
                 userId: widget.userId,
@@ -956,7 +1012,7 @@ class _VehicleFormSheetState extends State<_VehicleFormSheet> {
               widget.onSave(newVehicle);
               Navigator.pop(context);
             },
-              style: ElevatedButton.styleFrom(
+            style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFE85A10),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),

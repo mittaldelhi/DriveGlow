@@ -1,4 +1,11 @@
-enum BookingStatus { pending, confirmed, inProgress, completed, cancelled, lapsed }
+enum BookingStatus {
+  pending,
+  confirmed,
+  inProgress,
+  completed,
+  cancelled,
+  lapsed,
+}
 
 class BookingModel {
   final String id;
@@ -20,7 +27,9 @@ class BookingModel {
   final String? planId;
   final DateTime? originalPurchaseDate;
   final DateTime? subscriptionPeriodStart;
+  final DateTime? subscriptionPeriodEnd;
   final DateTime? cancelledAt;
+  final DateTime? lapsedAt;
   final String? scheduledTime; // Time slot: "09:00 AM", "09:30 AM", etc.
 
   BookingModel({
@@ -43,7 +52,9 @@ class BookingModel {
     this.planId,
     this.originalPurchaseDate,
     this.subscriptionPeriodStart,
+    this.subscriptionPeriodEnd,
     this.cancelledAt,
+    this.lapsedAt,
     this.scheduledTime,
   });
 
@@ -53,16 +64,18 @@ class BookingModel {
   bool get isInProgress => status == BookingStatus.inProgress;
   bool get isCompleted => status == BookingStatus.completed;
   bool get isCancelled => status == BookingStatus.cancelled;
-  
+
   // Is this a subscription (plan purchase)?
-  bool get isSubscription => isSubscriptionBooking && serviceId.startsWith('subscription::');
-  
+  bool get isSubscription =>
+      isSubscriptionBooking && serviceId.startsWith('subscription::');
+
   // Is this a service from subscription?
-  bool get isSubscriptionService => serviceId.startsWith('subscription_service::');
-  
+  bool get isSubscriptionService =>
+      serviceId.startsWith('subscription_service::');
+
   // Is this a standard care service?
   bool get isStandardCare => !isSubscriptionBooking;
-  
+
   // Simple 6-digit token for staff to enter
   String get displayToken {
     // Generate 6-digit token from booking ID hash
@@ -70,13 +83,13 @@ class BookingModel {
     final token = (hash % 900000 + 100000).toString();
     return token;
   }
-  
+
   bool get canStartService {
     if (isLapsed) return false;
     if (!isSubscriptionBooking) return isPending || isConfirmed;
     return (isPending || isConfirmed) &&
-           startedAt == null &&
-           DateTime.now().difference(createdAt).inHours < 24;
+        startedAt == null &&
+        DateTime.now().difference(createdAt).inHours < 24;
   }
 
   factory BookingModel.fromJson(Map<String, dynamic> json) {
@@ -97,26 +110,32 @@ class BookingModel {
       ),
       totalPrice: (json['total_price'] as num).toDouble(),
       qrCodeData: json['qr_code_data'] ?? '',
-      checkInTime: json['check_in_time'] != null 
-          ? DateTime.parse(json['check_in_time']) 
+      checkInTime: json['check_in_time'] != null
+          ? DateTime.parse(json['check_in_time'])
           : null,
-      completedAt: json['completed_at'] != null 
-          ? DateTime.parse(json['completed_at']) 
+      completedAt: json['completed_at'] != null
+          ? DateTime.parse(json['completed_at'])
           : null,
       createdAt: DateTime.parse(json['created_at']),
       isSubscriptionBooking: json['is_subscription_booking'] ?? false,
-      startedAt: json['started_at'] != null 
-          ? DateTime.parse(json['started_at']) 
+      startedAt: json['started_at'] != null
+          ? DateTime.parse(json['started_at'])
           : null,
       planId: json['plan_id'],
-      originalPurchaseDate: json['original_purchase_date'] != null 
-          ? DateTime.parse(json['original_purchase_date']) 
+      originalPurchaseDate: json['original_purchase_date'] != null
+          ? DateTime.parse(json['original_purchase_date'])
           : null,
-      subscriptionPeriodStart: json['subscription_period_start'] != null 
-          ? DateTime.parse(json['subscription_period_start']) 
+      subscriptionPeriodStart: json['subscription_period_start'] != null
+          ? DateTime.parse(json['subscription_period_start'])
           : null,
-      cancelledAt: json['cancelled_at'] != null 
-          ? DateTime.parse(json['cancelled_at']) 
+      subscriptionPeriodEnd: json['subscription_period_end'] != null
+          ? DateTime.parse(json['subscription_period_end'])
+          : null,
+      cancelledAt: json['cancelled_at'] != null
+          ? DateTime.parse(json['cancelled_at'])
+          : null,
+      lapsedAt: json['lapsed_at'] != null
+          ? DateTime.parse(json['lapsed_at'])
           : null,
       scheduledTime: json['scheduled_time'],
     );
@@ -138,9 +157,13 @@ class BookingModel {
       'plan_id': planId,
       'original_purchase_date': originalPurchaseDate?.toIso8601String(),
       'subscription_period_start': subscriptionPeriodStart?.toIso8601String(),
+      'subscription_period_end': subscriptionPeriodEnd?.toIso8601String(),
     };
     if (cancelledAt != null) {
       map['cancelled_at'] = cancelledAt!.toIso8601String();
+    }
+    if (lapsedAt != null) {
+      map['lapsed_at'] = lapsedAt!.toIso8601String();
     }
     if (scheduledTime != null) {
       map['scheduled_time'] = scheduledTime;

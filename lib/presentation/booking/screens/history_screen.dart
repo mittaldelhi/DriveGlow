@@ -14,8 +14,9 @@ import 'feedback_screen.dart';
 
 class HistoryScreen extends ConsumerStatefulWidget {
   final List<BookingModel>? bookings;
-  
-  const HistoryScreen({super.key, this.bookings});
+  final VoidCallback? onRefresh;
+
+  const HistoryScreen({super.key, this.bookings, this.onRefresh});
 
   @override
   ConsumerState<HistoryScreen> createState() => _HistoryScreenState();
@@ -27,7 +28,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   List<BookingModel> _allBookings = [];
   Map<String, List<BookingModel>> _groupedByVehicle = {};
   final Map<String, FeedbackModel?> _feedbackCache = {};
-  
+
   String _filterType = 'today';
   DateTime? _customStartDate;
   DateTime? _customEndDate;
@@ -48,15 +49,52 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   @override
   void didUpdateWidget(HistoryScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Update when parent passes new bookings
-    if (widget.bookings != null && widget.bookings != oldWidget.bookings) {
+    // Update when parent passes new bookings (check by length and hash for deep comparison)
+    final oldBookings = oldWidget.bookings;
+    final newBookings = widget.bookings;
+    if (newBookings != null && newBookings.isNotEmpty) {
+      final needsUpdate =
+          oldBookings == null ||
+          oldBookings.length != newBookings.length ||
+          oldBookings.hashCode != newBookings.hashCode;
+      if (needsUpdate) {
+        _allBookings = newBookings;
+        _processBookings();
+      }
+    }
+  }
+
+  void refresh() {
+    if (widget.bookings != null && widget.bookings!.isNotEmpty) {
       _allBookings = widget.bookings!;
       _processBookings();
+    } else {
+      _loadData();
     }
+  }
+
+  DateTime _getStatusChangeDate(BookingModel booking) {
+    // Use status change date for filtering and sorting:
+    // - completed bookings: use completedAt
+    // - cancelled bookings: use cancelledAt
+    // - lapsed/pending/confirmed bookings: use appointmentDate
+    if (booking.status == BookingStatus.completed &&
+        booking.completedAt != null) {
+      return booking.completedAt!;
+    }
+    if (booking.status == BookingStatus.cancelled &&
+        booking.cancelledAt != null) {
+      return booking.cancelledAt!;
+    }
+    return booking.appointmentDate;
   }
 
   void _processBookings() {
     final now = DateTime.now();
+
+    // Use widget.bookings if available, otherwise use _allBookings
+    final bookingsToProcess = widget.bookings ?? _allBookings;
+    _allBookings = bookingsToProcess;
     DateTime filterStart;
     DateTime filterEnd;
 
@@ -66,7 +104,11 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         filterEnd = filterStart.add(const Duration(days: 1));
         break;
       case 'yesterday':
-        filterStart = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 1));
+        filterStart = DateTime(
+          now.year,
+          now.month,
+          now.day,
+        ).subtract(const Duration(days: 1));
         filterEnd = DateTime(now.year, now.month, now.day);
         break;
       case 'weekly':
@@ -86,18 +128,27 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         filterEnd = now.add(const Duration(days: 1));
     }
 
-    final historyBookings = _allBookings.where((b) {
-      // Show all completed, cancelled, or lapsed bookings
-      if (b.status != BookingStatus.completed &&
-          b.status != BookingStatus.cancelled &&
-          b.status != BookingStatus.lapsed) return false;
-      
-      // Apply date filter
-      if (b.appointmentDate.isBefore(filterStart) || b.appointmentDate.isAfter(filterEnd)) return false;
-      
-      return true;
-    }).toList()
-      ..sort((a, b) => b.appointmentDate.compareTo(a.appointmentDate));
+    final historyBookings =
+        bookingsToProcess.where((b) {
+            // Show all completed, cancelled, or lapsed bookings
+            if (b.status != BookingStatus.completed &&
+                b.status != BookingStatus.cancelled &&
+                b.status != BookingStatus.lapsed)
+              return false;
+
+            // Apply date filter using status change date (not booking date)
+            final statusDate = _getStatusChangeDate(b);
+            if (statusDate.isBefore(filterStart) ||
+                statusDate.isAfter(filterEnd))
+              return false;
+
+            return true;
+          }).toList()
+          // Sort by status change date (most recent first)
+          ..sort(
+            (a, b) =>
+                _getStatusChangeDate(b).compareTo(_getStatusChangeDate(a)),
+          );
 
     // Group by vehicle
     final grouped = <String, List<BookingModel>>{};
@@ -128,7 +179,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
       final bookingRepo = ref.read(bookingRepositoryProvider);
       final bookings = await bookingRepo.getUserBookings(user.id);
-      
+
       _allBookings = bookings;
       _processBookings();
     } catch (e) {
@@ -184,9 +235,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: PremiumTheme.orangePrimary,
-            ),
+            colorScheme: ColorScheme.light(primary: PremiumTheme.orangePrimary),
           ),
           child: child!,
         );
@@ -307,7 +356,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               ),
             ),
           ),
-          if (_filterType == 'custom' && _customStartDate != null && _customEndDate != null)
+          if (_filterType == 'custom' &&
+              _customStartDate != null &&
+              _customEndDate != null)
             Container(
               color: Colors.white,
               padding: const EdgeInsets.only(bottom: 12),
@@ -324,10 +375,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
-                    ? _buildErrorState()
-                    : _groupedByVehicle.isEmpty
-                        ? _buildEmptyState()
-                        : _buildHistoryList(),
+                ? _buildErrorState()
+                : _groupedByVehicle.isEmpty
+                ? _buildEmptyState()
+                : _buildHistoryList(),
           ),
         ],
       ),
@@ -349,10 +400,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[700]),
             ),
             const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadData,
-              child: const Text('Retry'),
-            ),
+            ElevatedButton(onPressed: _loadData, child: const Text('Retry')),
           ],
         ),
       ),
@@ -379,10 +427,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             const SizedBox(height: 8),
             Text(
               _getEmptySubtitle(),
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[500]),
               textAlign: TextAlign.center,
             ),
           ],
@@ -409,9 +454,12 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     );
   }
 
-  Widget _buildVehicleSection(String vehicleNumber, List<BookingModel> bookings) {
-    final vehicleModel = bookings.first.vehicleName.isNotEmpty 
-        ? bookings.first.vehicleName 
+  Widget _buildVehicleSection(
+    String vehicleNumber,
+    List<BookingModel> bookings,
+  ) {
+    final vehicleModel = bookings.first.vehicleName.isNotEmpty
+        ? bookings.first.vehicleName
         : 'Vehicle';
     final headerTitle = '$vehicleNumber - $vehicleModel';
 
@@ -442,7 +490,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: PremiumTheme.orangePrimary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
@@ -459,7 +510,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             ],
           ),
           leading: Icon(Icons.directions_car, color: Colors.grey[600]),
-          children: bookings.map((booking) => _buildHistoryCard(booking)).toList(),
+          children: bookings
+              .map((booking) => _buildHistoryCard(booking))
+              .toList(),
         ),
       ),
     );
@@ -471,7 +524,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     final isCompleted = status == BookingStatus.completed;
     final isCancelled = status == BookingStatus.cancelled;
     final isLapsed = status == BookingStatus.lapsed;
-    
+
     final refData = parseBookingRef(booking.serviceId);
     final isSubscriptionService = refData.type == 'subscription_service';
 
@@ -507,7 +560,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.green.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
@@ -515,8 +571,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       child: Text(
                         isSubscriptionService ? 'SUBSCRIPTION' : 'REGULAR',
                         style: GoogleFonts.inter(
-                          fontSize: 10, 
-                          fontWeight: FontWeight.w700, 
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
                           color: Colors.green,
                         ),
                       ),
@@ -556,7 +612,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               Icon(Icons.calendar_today, size: 14, color: Colors.grey[500]),
               const SizedBox(width: 4),
               Text(
-                DateFormat('dd MMM yyyy, hh:mm a').format(booking.appointmentDate),
+                DateFormat(
+                  'dd MMM yyyy, hh:mm a',
+                ).format(booking.appointmentDate),
                 style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
               ),
               const Spacer(),
@@ -582,7 +640,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 onPressed: () => _showDetailsSheet(booking),
                 child: Text(
                   'Details',
-                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -605,7 +666,11 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             icon: Icon(Icons.star, size: 16, color: Colors.amber[700]),
             label: Text(
               '${feedback.rating.round()} Stars',
-              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.amber[700]),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.amber[700],
+              ),
             ),
           );
         }
@@ -617,7 +682,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             minimumSize: Size.zero,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
           child: Text(
             'Give Feedback',
@@ -654,7 +721,11 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     );
   }
 
-  Widget _buildDetailsContent(BookingModel booking, FeedbackModel? feedback, bool isCompleted) {
+  Widget _buildDetailsContent(
+    BookingModel booking,
+    FeedbackModel? feedback,
+    bool isCompleted,
+  ) {
     return Container(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.7,
@@ -692,20 +763,49 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             const Divider(height: 24),
             _buildDetailRow(
               'Booking Date',
-              DateFormat('dd MMM yyyy, hh:mm a').format(booking.appointmentDate),
+              DateFormat(
+                'dd MMM yyyy, hh:mm a',
+              ).format(booking.appointmentDate),
             ),
             if (isCompleted && booking.completedAt != null)
               _buildDetailRow(
                 'Completion Date',
-                DateFormat('dd MMM yyyy, hh:mm a').format(booking.completedAt!),
+                DateFormat(
+                  'dd MMM yyyy, hh:mm a',
+                ).format(booking.completedAt!.toLocal()),
+              ),
+            if (booking.status == BookingStatus.cancelled &&
+                booking.cancelledAt != null)
+              _buildDetailRow(
+                'Cancelled Date',
+                DateFormat(
+                  'dd MMM yyyy, hh:mm a',
+                ).format(booking.cancelledAt!.toLocal()),
+              ),
+            if (booking.status == BookingStatus.lapsed)
+              _buildDetailRow(
+                'Lapsed Date',
+                booking.lapsedAt != null
+                    ? DateFormat(
+                        'dd MMM yyyy, 12:00 AM',
+                      ).format(booking.lapsedAt!)
+                    : DateFormat(
+                        'dd MMM yyyy, 12:00 AM',
+                      ).format(DateTime.now()),
               ),
             _buildDetailRow('Booking ID', booking.id),
             _buildDetailRow('Status', booking.status.name.toUpperCase()),
-            _buildDetailRow('Price', '₹${booking.totalPrice.toStringAsFixed(0)}'),
+            _buildDetailRow(
+              'Price',
+              '₹${booking.totalPrice.toStringAsFixed(0)}',
+            ),
             if (booking.isSubscriptionBooking) ...[
               const Divider(height: 24),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: PremiumTheme.orangePrimary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
@@ -753,7 +853,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                     ),
                   ],
                 ),
-                if (feedback.comment != null && feedback.comment!.isNotEmpty) ...[
+                if (feedback.comment != null &&
+                    feedback.comment!.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(
                     feedback.comment!,
@@ -802,10 +903,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         children: [
           Text(
             label,
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              color: Colors.grey[600],
-            ),
+            style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
           ),
           Flexible(
             child: Text(

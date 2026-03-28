@@ -43,26 +43,29 @@ class _UserBookingsScreenState extends ConsumerState<UserBookingsScreen>
       // Use initialTab from widget or from route arguments
       String? tabToUse = widget.initialTab;
       bool shouldRefresh = false;
-      
+
       if (tabToUse == null) {
         final args = ModalRoute.of(context)?.settings.arguments as Map?;
         tabToUse = args?['openTab'] as String?;
         shouldRefresh = args?['refresh'] == true;
       } else {
-        shouldRefresh = true;  // If initialTab is set, refresh data
+        shouldRefresh = true; // If initialTab is set, refresh data
       }
-      
+
       if (tabToUse != null) {
         int tabIndex = 0;
-        if (tabToUse == 'subscriptions') tabIndex = 0;
-        else if (tabToUse == 'active') tabIndex = 1;
-        else if (tabToUse == 'history') tabIndex = 2;
-        
+        if (tabToUse == 'subscriptions')
+          tabIndex = 0;
+        else if (tabToUse == 'active')
+          tabIndex = 1;
+        else if (tabToUse == 'history')
+          tabIndex = 2;
+
         if (tabIndex >= 0 && tabIndex < _tabs.length) {
           _tabController.animateTo(tabIndex);
         }
       }
-      
+
       // Refresh data if requested
       if (shouldRefresh) {
         _loadData();
@@ -96,7 +99,9 @@ class _UserBookingsScreenState extends ConsumerState<UserBookingsScreen>
       try {
         final plansResponse = await Supabase.instance.client
             .from('subscription_plans')
-            .select('id, name, duration, tier, included_service_ids, service_usage_limits');
+            .select(
+              'id, name, duration, tier, included_service_ids, service_usage_limits',
+            );
         plans = {
           for (final row in (plansResponse as List))
             row['id'] as String: Map<String, dynamic>.from(row),
@@ -104,7 +109,7 @@ class _UserBookingsScreenState extends ConsumerState<UserBookingsScreen>
       } catch (_) {}
 
       if (!mounted) return;
-      
+
       setState(() {
         _bookings = bookings;
         _plansById = plans;
@@ -146,47 +151,47 @@ class _UserBookingsScreenState extends ConsumerState<UserBookingsScreen>
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? _buildErrorState()
-              : Column(
-                  children: [
-                    Container(
-                      color: Colors.white,
-                      child: TabBar(
-                        controller: _tabController,
-                        labelColor: PremiumTheme.orangePrimary,
-                        unselectedLabelColor: Colors.grey[500],
-                        labelStyle: GoogleFonts.inter(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                        indicator: UnderlineTabIndicator(
-                          borderSide: BorderSide(
-                            color: PremiumTheme.orangePrimary,
-                            width: 3,
-                          ),
-                        ),
-                        tabs: _tabs.map((tab) => Tab(text: tab)).toList(),
+          ? _buildErrorState()
+          : Column(
+              children: [
+                Container(
+                  color: Colors.white,
+                  child: TabBar(
+                    controller: _tabController,
+                    labelColor: PremiumTheme.orangePrimary,
+                    unselectedLabelColor: Colors.grey[500],
+                    labelStyle: GoogleFonts.inter(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                    indicator: UnderlineTabIndicator(
+                      borderSide: BorderSide(
+                        color: PremiumTheme.orangePrimary,
+                        width: 3,
                       ),
                     ),
-                    Expanded(
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          SubscriptionsTab(
-                            bookings: _bookings, 
-                            plansById: _plansById,
-                            onRefresh: _loadData,
-                          ),
-                          ActiveBookingTab(
-                            bookings: _bookings,
-                            onRefresh: _loadData,
-                          ),
-                          HistoryScreen(bookings: _bookings),
-                        ],
-                      ),
-                    ),
-                  ],
+                    tabs: _tabs.map((tab) => Tab(text: tab)).toList(),
+                  ),
                 ),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      SubscriptionsTab(
+                        bookings: _bookings,
+                        plansById: _plansById,
+                        onRefresh: _loadData,
+                      ),
+                      ActiveBookingTab(
+                        bookings: _bookings,
+                        onRefresh: _loadData,
+                      ),
+                      HistoryScreen(bookings: _bookings, onRefresh: _loadData),
+                    ],
+                  ),
+                ),
+              ],
+            ),
     );
   }
 
@@ -205,10 +210,7 @@ class _UserBookingsScreenState extends ConsumerState<UserBookingsScreen>
               style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[700]),
             ),
             const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadData,
-              child: const Text('Retry'),
-            ),
+            ElevatedButton(onPressed: _loadData, child: const Text('Retry')),
           ],
         ),
       ),

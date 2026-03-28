@@ -41,7 +41,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   final Set<String> _selectedVehicleIds = {};
   String? _selectedTimeSlot; // NEW: For time slot selection
 
-  final Map<String, bool> _vehicleHasSubscription = {};
+  final Map<String, bool?> _vehicleHasSubscription = {};
   final Map<String, double> _vehicleSubscriptionPrice = {};
   bool _isLoadingVehicleStatus = false;
   String _preselectedVehicleNumber = '';
@@ -49,7 +49,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   String _blockedVehicleMessage = '';
 
   final List<CouponModel> _availableCoupons = [];
-  
+
   // Time slots: 9:00 AM to 7:30 PM (30-min intervals)
   static const List<String> timeSlots = [
     '09:00 AM',
@@ -108,7 +108,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     return _discountAmount.clamp(0, _subtotal);
   }
 
-  double get _total => (_subtotal - _effectiveDiscount).clamp(0, double.infinity);
+  double get _total =>
+      (_subtotal - _effectiveDiscount).clamp(0, double.infinity);
 
   @override
   void initState() {
@@ -119,7 +120,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       if (args != null) {
         setState(() {
           _isService = args['isService'] as bool? ?? false;
-          _fromSubscriptionBooking = args['fromSubscriptionBooking'] as bool? ?? false;
+          _fromSubscriptionBooking =
+              args['fromSubscriptionBooking'] as bool? ?? false;
           _subscriptionPlanId = args['subscriptionPlanId'] as String? ?? '';
           _autoCouponName = args['autoCouponName'] as String? ?? '';
 
@@ -141,14 +143,20 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           }
 
           if (_fromSubscriptionBooking) {
-            _autoCouponName = _autoCouponName.isNotEmpty ? _autoCouponName : 'Subscription';
+            _autoCouponName = _autoCouponName.isNotEmpty
+                ? _autoCouponName
+                : 'Subscription';
             _discountAmount = _subtotal;
-            _preselectedVehicleNumber = args['selectedVehicleNumber'] as String? ?? '';
+            _preselectedVehicleNumber =
+                args['selectedVehicleNumber'] as String? ?? '';
           }
 
           final preselectedVehicleId = args['selectedVehicleId'] as String?;
-          final preselectedVehicleNumber = args['selectedVehicleNumber'] as String?;
-          if (!_isService && preselectedVehicleId != null && preselectedVehicleNumber != null) {
+          final preselectedVehicleNumber =
+              args['selectedVehicleNumber'] as String?;
+          if (!_isService &&
+              preselectedVehicleId != null &&
+              preselectedVehicleNumber != null) {
             _selectedVehicleId = preselectedVehicleId;
             _preselectedVehicleNumber = preselectedVehicleNumber;
           }
@@ -170,23 +178,26 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       setState(() => _isLoadingVehicleStatus = false);
       return;
     }
-    
+
     setState(() => _isLoadingVehicleStatus = true);
-    
+
     try {
       print('[VEHICLES] Loading profile for user: ${user.id}');
-      final profile = await ref.read(userRepositoryProvider).getProfile(user.id).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          print('[VEHICLES] Profile loading timed out');
-          return null;
-        },
-      );
+      final profile = await ref
+          .read(userRepositoryProvider)
+          .getProfile(user.id)
+          .timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              print('[VEHICLES] Profile loading timed out');
+              return null;
+            },
+          );
       final vehicles = profile?.vehicles ?? <VehicleModel>[];
       print('[VEHICLES] Got ${vehicles.length} vehicles');
-      
+
       if (!mounted) return;
-      
+
       if (vehicles.isEmpty) {
         setState(() {
           _vehicles = [];
@@ -197,39 +208,67 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         });
         return;
       }
-      
-      final isNewSubscriptionPurchase = !_isService && !_fromSubscriptionBooking;
-      final Map<String, bool> vehicleSubStatus = {};
-      
+
+      final isNewSubscriptionPurchase =
+          !_isService && !_fromSubscriptionBooking;
+      // Use bool? to support: true=has subscription, false=no subscription, null=unknown (loading/error)
+      final Map<String, bool?> vehicleSubStatus = {};
+      bool hasUnknownStatus = false;
+
       // Check subscription status for all vehicles with timeout
       for (final vehicle in vehicles) {
+        bool? hasSub;
         try {
-          print('[VEHICLES] Checking subscription for: ${vehicle.licensePlate}');
-          final hasSub = await BookingValidationHelper.hasActiveSubscription(
-            userId: user.id,
-            vehicleNumber: vehicle.licensePlate,
-          ).timeout(const Duration(seconds: 5), onTimeout: () {
-            print('[VEHICLES] Subscription check timed out for: ${vehicle.licensePlate}');
-            return false;
-          });
+          print(
+            '[VEHICLES] Checking subscription for: ${vehicle.licensePlate}',
+          );
+          // Use Future.any pattern to handle timeout properly
+          hasSub = await Future.any([
+            BookingValidationHelper.hasActiveSubscription(
+              userId: user.id,
+              vehicleNumber: vehicle.licensePlate,
+            ),
+            Future.delayed(const Duration(seconds: 10), () => null as bool?),
+          ]);
           vehicleSubStatus[vehicle.id] = hasSub;
+          if (hasSub == null) hasUnknownStatus = true;
           print('[VEHICLES] ${vehicle.licensePlate} has subscription: $hasSub');
         } catch (e) {
-          print('[VEHICLES] Subscription check error for ${vehicle.licensePlate}: $e');
-          vehicleSubStatus[vehicle.id] = false;
+          print(
+            '[VEHICLES] Subscription check error for ${vehicle.licensePlate}: $e',
+          );
+          vehicleSubStatus[vehicle.id] = null; // Return null for unknown status
+          hasUnknownStatus = true;
         }
       }
-      
+
       if (!mounted) return;
-      
+
       List<VehicleModel> displayVehicles;
-      
+
       if (isNewSubscriptionPurchase) {
+        // Check if any vehicle has unknown status - block purchase until confirmed
+        if (hasUnknownStatus) {
+          setState(() {
+            _vehicles = [];
+            _vehicleHasSubscription.clear();
+            _vehicleHasSubscription.addAll(vehicleSubStatus);
+            _selectedVehicleId = null;
+            _selectedVehicleIds.clear();
+            _isLoadingVehicleStatus = false;
+            _blockedDueToExistingSubscription = true;
+            _blockedVehicleMessage =
+                'Verifying subscription status... Please try again.';
+          });
+          return;
+        }
+
         // For NEW subscription purchase: show ONLY vehicles WITHOUT active subscription
-        displayVehicles = vehicles.where((v) => 
-          !(vehicleSubStatus[v.id] ?? false)
-        ).toList();
-        
+        // Only include vehicles where status is explicitly FALSE (no subscription)
+        displayVehicles = vehicles
+            .where((v) => vehicleSubStatus[v.id] == false)
+            .toList();
+
         if (displayVehicles.isEmpty) {
           // All vehicles have subscription - show empty state with block message
           setState(() {
@@ -240,7 +279,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             _selectedVehicleIds.clear();
             _isLoadingVehicleStatus = false;
             _blockedDueToExistingSubscription = true;
-            _blockedVehicleMessage = 'All your vehicles have active subscriptions';
+            _blockedVehicleMessage =
+                'All your vehicles have active subscriptions';
           });
           return;
         }
@@ -248,42 +288,53 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         // For standard services or from existing subscription: show ALL vehicles
         displayVehicles = vehicles;
       }
-      
+
       // Select default vehicle
       VehicleModel? vehicleToSelect;
       if (_preselectedVehicleNumber.isNotEmpty) {
         try {
           vehicleToSelect = displayVehicles.firstWhere(
-            (v) => v.licensePlate.toUpperCase() == _preselectedVehicleNumber.toUpperCase(),
+            (v) =>
+                v.licensePlate.toUpperCase() ==
+                _preselectedVehicleNumber.toUpperCase(),
           );
         } catch (e) {
           // Not found in displayVehicles, try in all vehicles
           try {
             vehicleToSelect = vehicles.firstWhere(
-              (v) => v.licensePlate.toUpperCase() == _preselectedVehicleNumber.toUpperCase(),
+              (v) =>
+                  v.licensePlate.toUpperCase() ==
+                  _preselectedVehicleNumber.toUpperCase(),
             );
           } catch (_) {}
         }
       }
-      vehicleToSelect ??= displayVehicles.isNotEmpty ? displayVehicles.firstWhere((v) => v.isPrimary, orElse: () => displayVehicles.first) : null;
-      
+      vehicleToSelect ??= displayVehicles.isNotEmpty
+          ? displayVehicles.firstWhere(
+              (v) => v.isPrimary,
+              orElse: () => displayVehicles.first,
+            )
+          : null;
+
       // For new subscription purchase, ensure selected vehicle doesn't have subscription
       if (isNewSubscriptionPurchase && vehicleToSelect != null) {
         final hasSub = vehicleSubStatus[vehicleToSelect.id] ?? false;
         if (hasSub) {
           // Find first vehicle without subscription
-          vehicleToSelect = displayVehicles.where((v) => !(vehicleSubStatus[v.id] ?? false)).firstOrNull;
+          vehicleToSelect = displayVehicles
+              .where((v) => !(vehicleSubStatus[v.id] ?? false))
+              .firstOrNull;
         }
       }
-      
+
       if (!mounted) return;
-      
+
       print('[VEHICLES] Setting state with ${displayVehicles.length} vehicles');
       setState(() {
         _vehicles = displayVehicles;
         _vehicleHasSubscription.clear();
         _vehicleHasSubscription.addAll(vehicleSubStatus);
-        
+
         if (vehicleToSelect != null) {
           _selectedVehicleId = vehicleToSelect.id;
           _selectedVehicleIds.clear();
@@ -293,10 +344,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           _selectedVehicleIds.clear();
           _selectedVehicleIds.add(displayVehicles.first.id);
         }
-        
+
         _isLoadingVehicleStatus = false;
-        _blockedDueToExistingSubscription = isNewSubscriptionPurchase && displayVehicles.isEmpty;
-        _blockedVehicleMessage = _blockedDueToExistingSubscription ? 'All your vehicles have active subscriptions' : '';
+        _blockedDueToExistingSubscription =
+            isNewSubscriptionPurchase && displayVehicles.isEmpty;
+        _blockedVehicleMessage = _blockedDueToExistingSubscription
+            ? 'All your vehicles have active subscriptions'
+            : '';
       });
       print('[VEHICLES] Loading complete');
     } catch (e) {
@@ -320,7 +374,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   @override
   Widget build(BuildContext context) {
     final user = Supabase.instance.client.auth.currentUser;
-    
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F6F6),
       appBar: AppBar(
@@ -425,12 +479,16 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Colors.orange[700], size: 24),
+                    Icon(
+                      Icons.info_outline,
+                      color: Colors.orange[700],
+                      size: 24,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        _blockedVehicleMessage.isNotEmpty 
-                            ? _blockedVehicleMessage 
+                        _blockedVehicleMessage.isNotEmpty
+                            ? _blockedVehicleMessage
                             : 'All your vehicles have active subscriptions',
                         style: GoogleFonts.inter(
                           color: Colors.orange[700],
@@ -451,7 +509,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 ),
                 child: Column(
                   children: [
-                    Icon(Icons.directions_car_outlined, size: 48, color: Colors.grey[300]),
+                    Icon(
+                      Icons.directions_car_outlined,
+                      size: 48,
+                      color: Colors.grey[300],
+                    ),
                     const SizedBox(height: 12),
                     Text(
                       'No vehicles added',
@@ -459,7 +521,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                     ),
                     const SizedBox(height: 8),
                     TextButton(
-                      onPressed: () => Navigator.pushNamed(context, '/edit-profile'),
+                      onPressed: () =>
+                          Navigator.pushNamed(context, '/edit-profile'),
                       child: const Text('Add vehicle in profile'),
                     ),
                   ],
@@ -502,8 +565,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                           style: GoogleFonts.inter(
                             fontSize: 15,
                             fontWeight: FontWeight.w500,
-                            color: _selectedTimeSlot != null 
-                                ? const Color(0xFF0F172A) 
+                            color: _selectedTimeSlot != null
+                                ? const Color(0xFF0F172A)
                                 : Colors.grey[500],
                           ),
                         ),
@@ -591,7 +654,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   if (_fromSubscriptionBooking) ...[
                     const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF10B981).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
@@ -617,7 +683,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               width: double.infinity,
               height: 56,
               child: ElevatedButton(
-                onPressed: (user != null && !_blockedDueToExistingSubscription && _hasSelectableVehicle) ? () => _processPayment(user.id) : null,
+                onPressed:
+                    (user != null &&
+                        !_blockedDueToExistingSubscription &&
+                        _hasSelectableVehicle)
+                    ? () => _processPayment(user.id)
+                    : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: PremiumTheme.orangePrimary,
                   foregroundColor: Colors.white,
@@ -626,7 +697,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   ),
                 ),
                 child: Text(
-                  _total == 0 ? 'CONFIRM BOOKING' : 'PAY ₹${_total.toStringAsFixed(0)}',
+                  _total == 0
+                      ? 'CONFIRM BOOKING'
+                      : 'PAY ₹${_total.toStringAsFixed(0)}',
                   style: GoogleFonts.inter(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
@@ -641,11 +714,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   }
 
   Widget _buildSelectedVehicleCard() {
-    final selectedVehicle = _vehicles.isNotEmpty ? _vehicles.firstWhere(
-      (v) => v.id == _selectedVehicleId,
-      orElse: () => _vehicles.first,
-    ) : null;
-    
+    final selectedVehicle = _vehicles.isNotEmpty
+        ? _vehicles.firstWhere(
+            (v) => v.id == _selectedVehicleId,
+            orElse: () => _vehicles.first,
+          )
+        : null;
+
     if (selectedVehicle == null) {
       return Container(
         padding: const EdgeInsets.all(16),
@@ -657,9 +732,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         child: const Text('No vehicle selected'),
       );
     }
-    
-    final hasSubscription = _vehicleHasSubscription[selectedVehicle.id] ?? false;
-    
+
+    final hasSubscription = _vehicleHasSubscription[selectedVehicle.id] == true;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -749,17 +824,18 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           isExpanded: true,
           hint: const Text('Choose a vehicle'),
           items: _vehicles.map((v) {
-            final hasSub = _vehicleHasSubscription[v.id] ?? false;
+            final hasSub = _vehicleHasSubscription[v.id] == true;
             return DropdownMenuItem(
               value: v.id,
               child: Row(
                 children: [
-                  Expanded(
-                    child: Text('${v.model} • ${v.licensePlate}'),
-                  ),
+                  Expanded(child: Text('${v.model} • ${v.licensePlate}')),
                   if (hasSub)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF10B981).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
@@ -785,7 +861,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
   Widget _buildSubscriptionVehicleList() {
     final isNewSubscriptionPurchase = !_isService && !_fromSubscriptionBooking;
-    
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -796,9 +872,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       child: Column(
         children: _vehicles.map((v) {
           final selected = _selectedVehicleIds.contains(v.id);
-          final hasSub = _vehicleHasSubscription[v.id] ?? false;
+          final hasSub = _vehicleHasSubscription[v.id] == true;
           final alreadyHasSubscription = isNewSubscriptionPurchase && hasSub;
-          
+
           if (alreadyHasSubscription) {
             return Container(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
@@ -834,7 +910,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.orange[100],
                       borderRadius: BorderRadius.circular(4),
@@ -852,7 +931,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               ),
             );
           }
-          
+
           return CheckboxListTile(
             value: selected,
             dense: true,
@@ -860,14 +939,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             controlAffinity: ListTileControlAffinity.leading,
             title: Row(
               children: [
-                Expanded(
-                  child: Text(
-                    '${v.model} • ${v.licensePlate}',
-                  ),
-                ),
+                Expanded(child: Text('${v.model} • ${v.licensePlate}')),
                 if (hasSub)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF10B981).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
@@ -923,15 +1001,17 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     if (_isService) {
       return _selectedVehicleId != null && _vehicles.isNotEmpty;
     }
-    
+
     // For subscription from booking (service from subscription), always allow
     if (_fromSubscriptionBooking) {
       return _selectedVehicleId != null || _selectedVehicleIds.isNotEmpty;
     }
-    
+
     // For new subscription purchase, check if at least one vehicle can be subscribed
+    // Also check for unknown status - if any vehicle has null status, don't allow purchase
     for (final v in _vehicles) {
-      final hasSub = _vehicleHasSubscription[v.id] ?? false;
+      final hasSub = _vehicleHasSubscription[v.id];
+      if (hasSub == null) return false; // Unknown status - block purchase
       if (!hasSub) return true; // Found a vehicle without subscription
     }
     return false;
@@ -940,7 +1020,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   Future<void> _processPayment(String userId) async {
     final dialogContext = context;
     print('[PAYMENT] Starting payment process for user: $userId');
-    
+
     showDialog(
       context: dialogContext,
       barrierDismissible: false,
@@ -956,7 +1036,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           : _vehicles.where((v) => _selectedVehicleIds.contains(v.id)).toList();
 
       print('[PAYMENT] Selected vehicles count: ${selectedVehicles.length}');
-      
+
       if (selectedVehicles.isEmpty) {
         Navigator.pop(dialogContext);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -964,9 +1044,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         );
         return;
       }
-      
+
       // Validate time slot for standard care services
-      if (_isService && !_fromSubscriptionBooking && _selectedTimeSlot == null) {
+      if (_isService &&
+          !_fromSubscriptionBooking &&
+          _selectedTimeSlot == null) {
         Navigator.pop(dialogContext);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please select a time slot')),
@@ -979,24 +1061,34 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       // - Subscription purchase: NO validation needed (only blocked if vehicle already has subscription)
       // - Service from subscription: YES validate (daily limits, same-day booking, etc.)
       final shouldValidate = _isService && _fromSubscriptionBooking;
-      print('[PAYMENT] Should validate: $shouldValidate (isService: $_isService, fromSubscription: $_fromSubscriptionBooking)');
-      
+      print(
+        '[PAYMENT] Should validate: $shouldValidate (isService: $_isService, fromSubscription: $_fromSubscriptionBooking)',
+      );
+
       if (shouldValidate) {
         for (final vehicle in selectedVehicles) {
           try {
             print('[PAYMENT] Validating vehicle: ${vehicle.licensePlate}');
-            final validationError = await BookingValidationHelper.validateBooking(
-              userId: userId,
-              vehicleNumber: vehicle.licensePlate,
-              serviceId: _itemId,
-              planId: _subscriptionPlanId.isNotEmpty ? _subscriptionPlanId : null,
-              isSubscriptionBooking: _fromSubscriptionBooking,
-              context: context,
-            ).timeout(const Duration(seconds: 5), onTimeout: () {
-              print('[PAYMENT] Validation timed out for: ${vehicle.licensePlate}');
-              return null;
-            });
-            
+            final validationError =
+                await BookingValidationHelper.validateBooking(
+                  userId: userId,
+                  vehicleNumber: vehicle.licensePlate,
+                  serviceId: _itemId,
+                  planId: _subscriptionPlanId.isNotEmpty
+                      ? _subscriptionPlanId
+                      : null,
+                  isSubscriptionBooking: _fromSubscriptionBooking,
+                  context: context,
+                ).timeout(
+                  const Duration(seconds: 5),
+                  onTimeout: () {
+                    print(
+                      '[PAYMENT] Validation timed out for: ${vehicle.licensePlate}',
+                    );
+                    return null;
+                  },
+                );
+
             if (validationError != null) {
               print('[PAYMENT] Validation error: $validationError');
               Navigator.pop(dialogContext);
@@ -1010,7 +1102,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       }
 
       print('[PAYMENT] Creating bookings...');
-      final perVehiclePrice = _isService ? _total : _total / selectedVehicles.length;
+      final perVehiclePrice = _isService
+          ? _total
+          : _total / selectedVehicles.length;
       final bookingRepo = ref.read(bookingRepositoryProvider);
       final now = DateTime.now();
       final createdBookingIds = <String>[];
@@ -1018,6 +1112,18 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       for (final vehicle in selectedVehicles) {
         try {
           print('[PAYMENT] Creating booking for: ${vehicle.licensePlate}');
+
+          // Calculate subscription period end based on duration
+          DateTime? subscriptionPeriodEnd;
+          if (_fromSubscriptionBooking) {
+            final isYearly =
+                _subscriptionDuration.toLowerCase().contains('yearly') ||
+                _subscriptionDuration.isEmpty;
+            subscriptionPeriodEnd = now.add(
+              Duration(days: isYearly ? 365 : 30),
+            );
+          }
+
           final booking = BookingModel(
             id: '',
             userId: userId,
@@ -1029,23 +1135,29 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             appointmentDate: now,
             status: BookingStatus.confirmed,
             totalPrice: perVehiclePrice,
-            qrCodeData: 'DG-${userId.substring(0, 8).toUpperCase()}-${now.millisecondsSinceEpoch}-${vehicle.id.substring(0, 4)}',
+            qrCodeData:
+                'DG-${userId.substring(0, 8).toUpperCase()}-${now.millisecondsSinceEpoch}-${vehicle.id.substring(0, 4)}',
             createdAt: now,
             isSubscriptionBooking: _fromSubscriptionBooking,
             planId: _subscriptionPlanId.isNotEmpty ? _subscriptionPlanId : null,
             subscriptionPeriodStart: _fromSubscriptionBooking ? now : null,
+            subscriptionPeriodEnd: subscriptionPeriodEnd,
             originalPurchaseDate: _fromSubscriptionBooking ? now : null,
             scheduledTime: _selectedTimeSlot,
           );
-          
+
           print('[PAYMENT] Calling bookingRepo.createBooking...');
-          final createdId = await bookingRepo.createBooking(booking).timeout(
-            const Duration(seconds: 30),
-            onTimeout: () {
-              print('[PAYMENT] Booking creation timed out');
-              throw Exception('Booking creation timed out. Please try again.');
-            },
-          );
+          final createdId = await bookingRepo
+              .createBooking(booking)
+              .timeout(
+                const Duration(seconds: 30),
+                onTimeout: () {
+                  print('[PAYMENT] Booking creation timed out');
+                  throw Exception(
+                    'Booking creation timed out. Please try again.',
+                  );
+                },
+              );
           print('[PAYMENT] Booking created with ID: $createdId');
           createdBookingIds.add(createdId);
         } catch (e) {
@@ -1053,7 +1165,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           Navigator.pop(dialogContext);
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Booking failed: $e'), backgroundColor: Colors.red),
+              SnackBar(
+                content: Text('Booking failed: $e'),
+                backgroundColor: Colors.red,
+              ),
             );
           }
           return;
@@ -1067,14 +1182,14 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         // For subscriptions, go to My Subscription tab to show new subscription
         // For services, go to My Booking tab
         final openTab = _isService ? 'active' : 'subscriptions';
-        
+
         Navigator.pushNamedAndRemoveUntil(
           context,
           '/booking',
           (route) => false,
           arguments: {
             'openTab': openTab,
-            'refresh': true,  // Trigger data refresh
+            'refresh': true, // Trigger data refresh
             'bookingIds': createdBookingIds,
             'isService': _isService,
             'itemName': _itemName,
@@ -1085,7 +1200,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_isService ? 'Service booked successfully!' : 'Subscription activated successfully!'),
+            content: Text(
+              _isService
+                  ? 'Service booked successfully!'
+                  : 'Subscription activated successfully!',
+            ),
             backgroundColor: Colors.green,
           ),
         );
@@ -1094,7 +1213,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       Navigator.pop(dialogContext);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Payment failed: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Payment failed: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -1102,7 +1224,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
   String _encodedItemRef() {
     if (_isService && _fromSubscriptionBooking) {
-      final planId = _subscriptionPlanId.isNotEmpty ? _subscriptionPlanId : 'unknown_subscription';
+      final planId = _subscriptionPlanId.isNotEmpty
+          ? _subscriptionPlanId
+          : 'unknown_subscription';
       final serviceId = _itemId.isNotEmpty ? _itemId : 'unknown_service';
       return 'subscription_service::$planId::$serviceId::${_itemName.trim()}';
     }
@@ -1111,7 +1235,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       final id = _itemId.isNotEmpty ? _itemId : 'unknown_service';
       return 'service::$id::${_itemName.trim()}';
     }
-    
+
     final id = _itemId.isNotEmpty ? _itemId : 'unknown_subscription';
     return 'subscription::$id::${_itemName.trim()}';
   }

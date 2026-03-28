@@ -43,7 +43,9 @@ class DashboardScreen extends ConsumerWidget {
             }
 
             return FutureBuilder<List<BookingModel>>(
-              future: ref.read(bookingRepositoryProvider).getUserBookings(user.id),
+              future: ref
+                  .read(bookingRepositoryProvider)
+                  .getUserBookings(user.id),
               builder: (context, snapshot) {
                 final bookings = snapshot.data ?? const <BookingModel>[];
                 final plansAsync = ref.watch(allSubscriptionPlansProvider);
@@ -57,7 +59,15 @@ class DashboardScreen extends ConsumerWidget {
                     };
                   }
                 });
-                return _buildContent(context, ref, user.fullName ?? 'User', profile, bookings, plansById, user.id);
+                return _buildContent(
+                  context,
+                  ref,
+                  user.fullName ?? 'User',
+                  profile,
+                  bookings,
+                  plansById,
+                  user.id,
+                );
               },
             );
           },
@@ -75,7 +85,10 @@ class DashboardScreen extends ConsumerWidget {
     Map<String, dynamic> plansById,
     String userId,
   ) {
-    final activeSubscription = _latestActiveSubscription(bookings, plansById: plansById);
+    final activeSubscription = _latestActiveSubscription(
+      bookings,
+      plansById: plansById,
+    );
 
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
@@ -90,11 +103,20 @@ class DashboardScreen extends ConsumerWidget {
                 const SizedBox(height: 24),
                 _buildActivePlanCard(context, activeSubscription),
                 const SizedBox(height: 28),
-                _buildSectionTitle('Your Garage', actionText: 'Manage', onAction: () {
-                  Navigator.pushNamed(context, '/edit-profile');
-                }),
+                _buildSectionTitle(
+                  'Your Vehicles',
+                  actionText: 'Manage',
+                  onAction: () {
+                    Navigator.pushNamed(context, '/edit-profile');
+                  },
+                ),
                 const SizedBox(height: 12),
-                _buildGarageWithSubscription(context, profile, bookings, userId),
+                _buildGarageWithSubscription(
+                  context,
+                  profile,
+                  bookings,
+                  userId,
+                ),
                 const SizedBox(height: 28),
                 _buildQuickActions(context),
                 const SizedBox(height: 100),
@@ -165,28 +187,37 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildActivePlanCard(BuildContext context, _PlanRef? activeSubscription) {
+  Widget _buildActivePlanCard(
+    BuildContext context,
+    _PlanRef? activeSubscription,
+  ) {
     final hasPlan = activeSubscription != null && !activeSubscription.isExpired;
     final planName = activeSubscription?.name ?? 'Choose a subscription plan';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: hasPlan ? const LinearGradient(
-          colors: [Color(0xFFFF7A18), Color(0xFFFF4D00)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ) : null,
+        gradient: hasPlan
+            ? const LinearGradient(
+                colors: [Color(0xFFFF7A18), Color(0xFFFF4D00)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : null,
         color: hasPlan ? null : Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: hasPlan ? Colors.transparent : Colors.grey[200]!),
-        boxShadow: hasPlan ? [
-          BoxShadow(
-            color: const Color(0xFFFF7A18).withValues(alpha: 0.3),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ] : null,
+        border: Border.all(
+          color: hasPlan ? Colors.transparent : Colors.grey[200]!,
+        ),
+        boxShadow: hasPlan
+            ? [
+                BoxShadow(
+                  color: const Color(0xFFFF7A18).withValues(alpha: 0.3),
+                  blurRadius: 15,
+                  offset: const Offset(0, 5),
+                ),
+              ]
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -198,14 +229,19 @@ class DashboardScreen extends ConsumerWidget {
                 style: GoogleFonts.inter(
                   fontSize: 10,
                   fontWeight: FontWeight.w900,
-                  color: hasPlan ? Colors.white.withValues(alpha: 0.9) : Colors.grey[600],
+                  color: hasPlan
+                      ? Colors.white.withValues(alpha: 0.9)
+                      : Colors.grey[600],
                   letterSpacing: 1.2,
                 ),
               ),
               if (hasPlan && activeSubscription.showUnlimited) ...[
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
@@ -249,11 +285,7 @@ class DashboardScreen extends ConsumerWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.all_inclusive,
-                    color: Colors.white,
-                    size: 18,
-                  ),
+                  Icon(Icons.all_inclusive, color: Colors.white, size: 18),
                   const SizedBox(width: 8),
                   Text(
                     'Unlimited Washes',
@@ -279,7 +311,9 @@ class DashboardScreen extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    activeSubscription.isExpired ? Icons.warning : Icons.calendar_today,
+                    activeSubscription.isExpired
+                        ? Icons.warning
+                        : Icons.calendar_today,
                     color: Colors.white,
                     size: 14,
                   ),
@@ -366,10 +400,13 @@ class DashboardScreen extends ConsumerWidget {
       separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final vehicle = vehicles[index];
-        final hasSubscription = subscriptionStatus[vehicle.licensePlate.toUpperCase()] ?? false;
-        final last = bookings.where((b) => b.vehicleNumber == vehicle.licensePlate).toList();
+        final hasSubscription =
+            subscriptionStatus[vehicle.licensePlate.toUpperCase()] ?? false;
+        final last = bookings
+            .where((b) => b.vehicleNumber == vehicle.licensePlate)
+            .toList();
         final lastDate = last.isEmpty ? null : last.first.appointmentDate;
-        
+
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -388,13 +425,19 @@ class DashboardScreen extends ConsumerWidget {
                         Expanded(
                           child: Text(
                             vehicle.model,
-                            style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w800),
+                            style: GoogleFonts.inter(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         if (hasSubscription)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.green,
                               borderRadius: BorderRadius.circular(4),
@@ -402,7 +445,11 @@ class DashboardScreen extends ConsumerWidget {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.check_circle, color: Colors.white, size: 12),
+                                const Icon(
+                                  Icons.check_circle,
+                                  color: Colors.white,
+                                  size: 12,
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
                                   'SUBSCRIBED',
@@ -420,14 +467,20 @@ class DashboardScreen extends ConsumerWidget {
                     const SizedBox(height: 4),
                     Text(
                       vehicle.licensePlate,
-                      style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       lastDate == null
                           ? 'No previous washes'
                           : 'Last wash: ${DateFormat('dd MMM yyyy').format(lastDate)}',
-                      style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500]),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: Colors.grey[500],
+                      ),
                     ),
                   ],
                 ),
@@ -437,7 +490,8 @@ class DashboardScreen extends ConsumerWidget {
                 width: 130,
                 child: hasSubscription
                     ? OutlinedButton(
-                        onPressed: () => Navigator.pushNamed(context, '/booking'),
+                        onPressed: () =>
+                            Navigator.pushNamed(context, '/booking'),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 8),
                           textStyle: GoogleFonts.inter(fontSize: 12),
@@ -445,7 +499,10 @@ class DashboardScreen extends ConsumerWidget {
                         child: const Text('View Subscription'),
                       )
                     : ElevatedButton(
-                        onPressed: () => Navigator.pushNamed(context, '/subscription-choice'),
+                        onPressed: () => Navigator.pushNamed(
+                          context,
+                          '/subscription-choice',
+                        ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFE85A10),
                           foregroundColor: Colors.white,
@@ -477,11 +534,16 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Future<Map<String, bool>> _loadSubscriptionStatus(String userId, List<dynamic> vehicles) async {
+  Future<Map<String, bool>> _loadSubscriptionStatus(
+    String userId,
+    List<dynamic> vehicles,
+  ) async {
     if (vehicles.isEmpty) return {};
-    
+
     try {
-      final vehicleNumbers = vehicles.map((v) => v.licensePlate as String).toList();
+      final vehicleNumbers = vehicles
+          .map((v) => v.licensePlate as String)
+          .toList();
       return await BookingValidationHelper.getAllVehiclesSubscriptionStatus(
         userId: userId,
         vehicleNumbers: vehicleNumbers,
@@ -500,10 +562,26 @@ class DashboardScreen extends ConsumerWidget {
       mainAxisSpacing: 12,
       childAspectRatio: 1.45,
       children: [
-        _actionTile('History', Icons.history, () => Navigator.pushNamed(context, '/history')),
-        _actionTile('FAQ', Icons.help_outline, () => Navigator.pushNamed(context, '/faq')),
-        _actionTile('Support', Icons.support_agent, () => Navigator.pushNamed(context, '/chat')),
-        _actionTile('Settings', Icons.settings, () => Navigator.pushNamed(context, '/settings')),
+        _actionTile(
+          'History',
+          Icons.history,
+          () => Navigator.pushNamed(context, '/history'),
+        ),
+        _actionTile(
+          'FAQ',
+          Icons.help_outline,
+          () => Navigator.pushNamed(context, '/faq'),
+        ),
+        _actionTile(
+          'Support',
+          Icons.support_agent,
+          () => Navigator.pushNamed(context, '/chat'),
+        ),
+        _actionTile(
+          'Settings',
+          Icons.settings,
+          () => Navigator.pushNamed(context, '/settings'),
+        ),
       ],
     );
   }
@@ -533,11 +611,18 @@ class DashboardScreen extends ConsumerWidget {
 
   Widget _buildHistory(List<BookingModel> bookings) {
     final history = bookings
-        .where((b) => b.status == BookingStatus.completed || b.status == BookingStatus.cancelled)
+        .where(
+          (b) =>
+              b.status == BookingStatus.completed ||
+              b.status == BookingStatus.cancelled,
+        )
         .take(3)
         .toList();
     if (history.isEmpty) {
-      return _buildEmptyCard('No history yet.', 'Completed services appear here.');
+      return _buildEmptyCard(
+        'No history yet.',
+        'Completed services appear here.',
+      );
     }
 
     return Column(
@@ -564,12 +649,18 @@ class DashboardScreen extends ConsumerWidget {
                     ),
                     Text(
                       '${DateFormat('dd MMM yyyy').format(b.appointmentDate)} • ${b.vehicleName}',
-                      style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
                     ),
                   ],
                 ),
               ),
-              Text('₹${b.totalPrice.toStringAsFixed(0)}', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+              Text(
+                '₹${b.totalPrice.toStringAsFixed(0)}',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+              ),
             ],
           ),
         );
@@ -596,7 +687,10 @@ class DashboardScreen extends ConsumerWidget {
         children: [
           Text(title, style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
-          Text(subtitle, style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600])),
+          Text(
+            subtitle,
+            style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
+          ),
           if (action != null && actionText != null) ...[
             const SizedBox(height: 8),
             TextButton(onPressed: action, child: Text(actionText)),
@@ -606,24 +700,31 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  _PlanRef? _latestActiveSubscription(List<BookingModel> bookings, {Map<String, dynamic>? plansById}) {
+  _PlanRef? _latestActiveSubscription(
+    List<BookingModel> bookings, {
+    Map<String, dynamic>? plansById,
+  }) {
     final subs = bookings
-        .where((b) => b.status != BookingStatus.cancelled && b.serviceId.startsWith('subscription::'))
+        .where(
+          (b) =>
+              b.status != BookingStatus.cancelled &&
+              b.serviceId.startsWith('subscription::'),
+        )
         .toList();
     if (subs.isEmpty) return null;
     subs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     final latestSub = subs.first;
     final parts = latestSub.serviceId.split('::');
-    
+
     String name = 'Subscription';
     bool showUnlimited = false;
     int? totalAllowed;
     String? duration;
-    
+
     if (parts.length >= 3) {
       name = parts.sublist(2).join('::');
     }
-    
+
     // Get plan details if available
     if (parts.length >= 2 && plansById != null) {
       final planId = parts[1];
@@ -633,7 +734,7 @@ class DashboardScreen extends ConsumerWidget {
         showUnlimited = plan['show_unlimited'] == true;
       }
     }
-    
+
     return _PlanRef(
       id: parts.length >= 2 ? parts[1] : 'unknown',
       name: name,
